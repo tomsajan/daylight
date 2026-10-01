@@ -1,14 +1,15 @@
 <!-- Phone sheet with every date, time and speed control that doesn't fit the compact strip. -->
 <script lang="ts">
-  import { app, SPEEDS } from '$core/state/app.svelte';
+  import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
   import { currentMinutes } from '$core/state/views';
   import { formatClock, formatDate, formatOffset } from '$core/time/format';
   import { dateKey } from '$core/time/timescale';
   import Icon from './Icon.svelte';
   import Scrubber from './Scrubber.svelte';
+  import SpeedPanel from './SpeedPanel.svelte';
   import { ICON } from './icons';
-  import { setSpeedIndex, speedIndex, stepDays, stepMinutes, stepMonths } from './lib';
+  import { stepDays, stepMinutes, stepMonths } from './lib';
   import { ui } from './ui.svelte';
 
   const minutes = $derived(currentMinutes());
@@ -29,7 +30,7 @@
 <div class="backdrop" role="presentation" onclick={() => (ui.timeSheetOpen = false)}></div>
 <div class="sheet" role="dialog" aria-label="Date, time and speed" aria-modal="true">
   <header>
-    <h2 class="lbl">Date &amp; time</h2>
+    <h2 class="lbl">Time &amp; speed</h2>
     <span class="now num">{formatDate(app.date, 'medium')} {formatClock(app.time, app.scale, settings.hourCycle, true)} {formatOffset(app.time, app.scale)}</span>
     <button type="button" class="btn" onclick={() => (ui.timeSheetOpen = false)}><Icon d={ICON.close} /> Done</button>
   </header>
@@ -59,30 +60,18 @@
       <button type="button" class="btn num" onclick={() => stepMinutes(60)}>+1h</button>
     </div>
 
-    <div class="scrub"><Scrubber /></div>
+    <section class="sect" aria-label="Time of day">
+      <span class="lbl">Time of day <small>drag through the day's light</small></span>
+      <div class="scrub"><Scrubber /></div>
+    </section>
 
-    <div class="row">
-      <span class="lbl">Speed</span>
-      <div class="seg dirseg" role="radiogroup" aria-label="Direction">
-        <button type="button" class="btn" role="radio" aria-checked={app.speed < 0} class:on={app.speed < 0} onclick={() => app.speed > 0 && app.setSpeed(-app.speed)}>
-          <Icon d={ICON.backward} /> Back
-        </button>
-        <button type="button" class="btn" role="radio" aria-checked={app.speed > 0} class:on={app.speed > 0} onclick={() => app.speed < 0 && app.setSpeed(-app.speed)}>
-          Fwd <Icon d={ICON.forward} />
-        </button>
-      </div>
-    </div>
-    <div class="speeds" role="radiogroup" aria-label="Simulation speed">
-      {#each SPEEDS as s, i (s.value)}
-        <button type="button" class="btn num" role="radio" aria-checked={i === speedIndex()} class:on={i === speedIndex()} onclick={() => setSpeedIndex(i)}>{s.label}</button>
-      {/each}
-    </div>
-    <div class="row actions">
-      <button type="button" class="btn grow" class:primary={!app.playing} onclick={() => app.toggle()}>
-        <Icon d={app.playing ? ICON.pause : ICON.play} />{app.playing ? 'Pause' : 'Play'}
+    <section class="sect" aria-label="Simulation speed">
+      <span class="lbl">Simulation speed <small>− slower · + faster · slide to reverse</small></span>
+      <SpeedPanel large />
+      <button type="button" class="btn now-btn" class:on={app.live} onclick={() => app.goLive()}>
+        <span class="led" class:live={app.live}></span>Now (real time)
       </button>
-      <button type="button" class="btn grow" class:on={app.live} onclick={() => app.goLive()}>Now (real time)</button>
-    </div>
+    </section>
   </div>
 </div>
 
@@ -179,21 +168,33 @@
   .scrub {
     padding: 0 7px;
   }
-  .row {
+  .sect {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
   }
-  .speeds {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
+  .sect small {
+    margin-left: 6px;
+    font: 400 11px var(--sans);
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--faint);
   }
-  .actions {
-    padding-top: 4px;
+  .now-btn {
+    gap: 7px;
+    height: 44px;
+    margin-top: 4px;
   }
-  .grow {
-    flex: 1;
+  .led {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--faint);
+  }
+  .led.live {
+    background: var(--led-live);
+    box-shadow: 0 0 6px var(--led-live);
   }
 </style>

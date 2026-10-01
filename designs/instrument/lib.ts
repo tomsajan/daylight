@@ -1,8 +1,8 @@
 /** Small helpers shared by the Instrument panels: compact formats, date stepping, phase codes. */
 import { Light } from '$core/astro/daylight';
-import { app, SPEEDS } from '$core/state/app.svelte';
+import { app } from '$core/state/app.svelte';
 import { addDays, type CivilDate } from '$core/time/timescale';
-import { timeZoneName } from '$core/time/format';
+import { formatSpeed } from '$core/time/format';
 
 /** Short codes for light phases, for tight table cells. */
 export const PHASE_CODE: Record<Light, string> = {
@@ -60,37 +60,14 @@ export function stepMinutes(minutes: number): void {
   app.setTime(app.time + minutes * 60_000);
 }
 
-/** Index into SPEEDS of the current speed (ignoring direction). */
-export function speedIndex(): number {
-  return Math.max(0, SPEEDS.findIndex((s) => s.value === Math.abs(app.speed)));
+/** Signed simulation rate for compact readouts: "+4.6 h/s", "−2 days/s". */
+export function rateLabel(): string {
+  return `${app.speed < 0 ? '−' : '+'}${formatSpeed(Math.abs(app.speed))}`;
 }
-
-export function setSpeedIndex(i: number): void {
-  const k = Math.max(0, Math.min(SPEEDS.length - 1, i));
-  app.setSpeed(SPEEDS[k].value * (app.speed < 0 ? -1 : 1));
-  if (!app.playing) app.play();
-}
-
-/** Short speed labels for the segmented speed selector. */
-export const SPEED_SHORT = ['1×', '10×', '1m', '10m', '1h', '6h', '1d', '1w', '1mo'];
 
 export type SimState = 'live' | 'run' | 'hold';
 
 export function simState(): SimState {
   if (app.live && app.playing) return 'live';
   return app.playing ? 'run' : 'hold';
-}
-
-const zoneCache = new Map<string, string>();
-
-/** timeZoneName() cached per zone and hour; abbreviations only change at DST transitions. */
-export function zoneAbbr(utcMs: number, tz: string): string {
-  const key = `${tz}|${Math.floor(utcMs / 3_600_000)}`;
-  let v = zoneCache.get(key);
-  if (v === undefined) {
-    if (zoneCache.size > 500) zoneCache.clear();
-    v = timeZoneName(utcMs, tz);
-    zoneCache.set(key, v);
-  }
-  return v;
 }

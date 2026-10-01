@@ -1,9 +1,14 @@
-<!-- Year chart with mode switch, year stepping, visible zoom buttons and a cursor readout. -->
+<!--
+  Year chart with mode switch, year stepping, visible zoom buttons, solstice /
+  equinox / clock-change marks and a cursor readout. The sun dot and the day
+  line can be dragged (core chart).
+-->
 <script lang="ts">
   import YearChart from '$core/charts/YearChart.svelte';
   import { app } from '$core/state/app.svelte';
   import { settings, resolvedTheme } from '$core/state/settings.svelte';
   import { currentMinutes, selectedDayIndex, yearSeries } from '$core/state/views';
+  import { yearAnnotations } from '$core/state/seasons';
   import { formatDate, formatMinutes } from '$core/time/format';
   import { addDays } from '$core/time/timescale';
   import Panel from './Panel.svelte';
@@ -14,10 +19,12 @@
 
   let chart: YearChart | undefined = $state();
   let hover = $state<{ dayIndex: number; minutes: number } | null>(null);
+  let zoomed = $state({ x: false, y: false });
 
   const hc = $derived(settings.hourCycle);
   const series = $derived(yearSeries());
   const palette = $derived(instrumentPalette(resolvedTheme()));
+  const annotations = $derived(app.selected ? yearAnnotations(app.selected) : []);
 
   // Readout follows the pointer when hovering, otherwise the selected date.
   const cursorIndex = $derived(hover ? hover.dayIndex : selectedDayIndex());
@@ -42,15 +49,15 @@
     <div class="zoom">
       <span class="lbl" title="Zoom the date axis">Dates</span>
       <div class="seg">
-        <button type="button" class="btn" onclick={() => chart?.zoomOut()} aria-label="Zoom out dates" title="Show more days"><Icon d={ICON.minus} /></button>
+        <button type="button" class="btn" onclick={() => chart?.zoomOut()} disabled={!zoomed.x} aria-label="Zoom out dates" title="Show more days"><Icon d={ICON.minus} /></button>
         <button type="button" class="btn" onclick={() => chart?.zoomIn()} aria-label="Zoom in dates" title="Show fewer days, around the selected date"><Icon d={ICON.plus} /></button>
       </div>
       <span class="lbl" title="Zoom the hours axis">Hours</span>
       <div class="seg">
-        <button type="button" class="btn" onclick={() => chart?.zoomTimeOut()} aria-label="Zoom out hours" title="Show more hours"><Icon d={ICON.minus} /></button>
+        <button type="button" class="btn" onclick={() => chart?.zoomTimeOut()} disabled={!zoomed.y} aria-label="Zoom out hours" title="Show more hours"><Icon d={ICON.minus} /></button>
         <button type="button" class="btn" onclick={() => chart?.zoomTimeIn()} aria-label="Zoom in hours" title="Show fewer hours"><Icon d={ICON.plus} /></button>
       </div>
-      <button type="button" class="btn" onclick={() => chart?.resetZoom()} title="Show the whole year (or double-click the chart)">Reset</button>
+      <button type="button" class="btn" onclick={() => chart?.resetZoom()} disabled={!zoomed.x && !zoomed.y} title="Show the whole year (or double-click the chart)">Reset</button>
     </div>
   {/snippet}
 
@@ -67,7 +74,9 @@
           twilight={settings.twilight}
           hourCycle={hc}
           {palette}
+          {annotations}
           onhover={(h) => (hover = h)}
+          onviewchange={(z) => (zoomed = z)}
           onpick={(i, m) => {
             pickDay(i);
             if (settings.chartMode === 'bands') app.setMinutesOfDay(Math.max(0, Math.min(1439, m)));
@@ -88,7 +97,13 @@
           {@const d = s.days[Math.max(0, Math.min(s.days.length - 1, cursorIndex))]}
           {#if d}<span class="other"><i class="sw" style="--c: {s.color}"></i>{dur(d.daylightMin)}</span>{/if}
         {/each}
-        <span class="hint">Tap a day to select it. Drag to pan, double-tap to reset.</span>
+        {#if settings.chartMode === 'bands'}
+          <span class="hint long">Drag the sun to move date and time (Shift: one axis), the day line to move the date. Wheel to zoom, double-click to reset.</span>
+          <span class="hint short">Drag the sun to change date and time</span>
+        {:else}
+          <span class="hint long">Drag the day line to move the date. Wheel to zoom, double-click to reset.</span>
+          <span class="hint short">Drag the day line to change the date</span>
+        {/if}
       </div>
     {/if}
   </div>
@@ -150,9 +165,15 @@
     font: 400 11px var(--sans);
     color: var(--faint);
   }
+  .hint.short {
+    display: none;
+  }
   @media (max-width: 759px) {
-    .hint {
+    .hint.long {
       display: none;
+    }
+    .hint.short {
+      display: inline;
     }
   }
 </style>

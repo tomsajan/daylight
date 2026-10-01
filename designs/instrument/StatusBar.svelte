@@ -1,17 +1,17 @@
 <!-- Bottom status line: simulation state, simulated time in local and UTC, rate, clock, place count. -->
 <script lang="ts">
-  import { app, MAX_PLACES, SPEEDS } from '$core/state/app.svelte';
+  import { app, MAX_PLACES } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
-  import { formatClock, formatDate, formatOffset } from '$core/time/format';
+  import { formatClock, formatDate, formatOffset, timeZoneName } from '$core/time/format';
   import { makeTimeScale, TIME_SCALE_LABELS } from '$core/time/timescale';
-  import { simState, speedIndex, zoneAbbr } from './lib';
+  import { rateLabel, simState } from './lib';
   import { ui } from './ui.svelte';
 
   const UTC = makeTimeScale('utc', { lon: 0, tz: 'UTC' });
   const sim = $derived(simState());
   const LABEL = { live: 'Live', run: 'Simulating', hold: 'Paused' } as const;
   const offset = $derived(formatOffset(app.time, app.scale));
-  const zone = $derived(settings.timeScale === 'local' && app.selected ? zoneAbbr(app.time, app.selected.tz) : TIME_SCALE_LABELS[settings.timeScale]);
+  const zone = $derived(settings.timeScale === 'local' && app.selected ? timeZoneName(app.time, app.selected.tz) : TIME_SCALE_LABELS[settings.timeScale]);
 </script>
 
 <footer class="status num">
@@ -22,7 +22,7 @@
     <span class="muted">{zone === offset ? offset : `${zone} ${offset}`}</span>
   </span>
   <span class="cell"><b class="lbl">UTC</b>{formatClock(app.time, UTC, '24', true)}</span>
-  <span class="cell"><b class="lbl">Rate</b>{app.speed < 0 ? '−' : '+'}{SPEEDS[speedIndex()].label}</span>
+  <span class="cell" title="Simulated time per real second"><b class="lbl">Rate</b>{rateLabel()}</span>
   <span class="cell hide-md"><b class="lbl">Clock</b>{TIME_SCALE_LABELS[settings.timeScale]}</span>
   <span class="cell hide-md"><b class="lbl">Places</b>{app.places.length}/{MAX_PLACES}</span>
   <button type="button" class="keys" onclick={() => (ui.helpOpen = !ui.helpOpen)} aria-expanded={ui.helpOpen}>

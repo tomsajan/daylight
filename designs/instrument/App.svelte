@@ -20,10 +20,11 @@
   import StatusBar from './StatusBar.svelte';
   import HelpPopover from './HelpPopover.svelte';
   import SettingsDrawer from './SettingsDrawer.svelte';
+  import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import TimeSheet from './TimeSheet.svelte';
   import Icon from './Icon.svelte';
   import { ICON } from './icons';
-  import { delta, dur, setSpeedIndex, speedIndex, stepDays, stepMinutes, stepMonths } from './lib';
+  import { delta, dur, stepDays, stepMinutes, stepMonths } from './lib';
   import { ui, type Tab } from './ui.svelte';
 
   const theme = $derived(resolvedTheme());
@@ -43,8 +44,12 @@
 
   // --- Keyboard ---------------------------------------------------------------
 
-  function isTyping(t: EventTarget | null): boolean {
-    return t instanceof HTMLElement && !!t.closest('input, select, textarea, [contenteditable="true"]');
+  function isTyping(e: KeyboardEvent): boolean {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return false;
+    // A focused slider (time scrubber, speed) keeps its arrow keys; the other shortcuts still work.
+    if (t instanceof HTMLInputElement && t.type === 'range') return /^(Arrow|Page|Home$|End$)/.test(e.key);
+    return !!t.closest('input, select, textarea, [contenteditable="true"]');
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -52,7 +57,7 @@
       if (ui.closeAll()) e.preventDefault();
       return;
     }
-    if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key;
     let handled = true;
     switch (k) {
@@ -81,6 +86,7 @@
         break;
       case 'r':
       case 'R':
+        // Flip direction at the same rate (stays paused if paused).
         app.setSpeed(-app.speed);
         break;
       case 'n':
@@ -89,11 +95,11 @@
         break;
       case '+':
       case '=':
-        setSpeedIndex(speedIndex() + 1);
+        app.stepSpeed(1);
         break;
       case '-':
       case '_':
-        setSpeedIndex(speedIndex() - 1);
+        app.stepSpeed(-1);
         break;
       case 'a':
       case 'A':
@@ -122,7 +128,7 @@
 
   // Space on a focused button would also "click" it on keyup; the shortcut wins.
   function onKeyup(e: KeyboardEvent) {
-    if (e.key === ' ' && !isTyping(e.target)) e.preventDefault();
+    if (e.key === ' ' && !isTyping(e)) e.preventDefault();
   }
 </script>
 
@@ -141,6 +147,7 @@
     </div>
     <div class="search-slot"><SearchBox /></div>
     <div class="top-tools">
+      <div class="design"><DesignSwitcher label="Design" /></div>
       <button type="button" class="btn help-btn" onclick={() => (ui.helpOpen = !ui.helpOpen)} aria-expanded={ui.helpOpen} title="Keyboard shortcuts (?)">?</button>
       <button type="button" class="btn settings-btn" onclick={() => (ui.settingsOpen = true)} title="Settings (S)" aria-label="Settings">
         <Icon d={ICON.gear} size={15} /><span class="txt">Settings</span>
@@ -260,6 +267,28 @@
   .help-btn {
     font: 600 12px var(--mono);
   }
+  .design {
+    display: flex;
+    align-items: center;
+    margin-right: 4px;
+  }
+  .design :global(.dl-design__label) {
+    font: 600 10px/1.2 var(--sans);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .design :global(.dl-design select) {
+    height: 28px;
+    padding: 0 4px;
+    border-color: var(--rule-strong);
+    border-radius: var(--r);
+    background: var(--panel);
+    font: 500 11.5px var(--mono);
+  }
+  .design :global(.dl-design select:hover) {
+    border-color: var(--accent);
+  }
 
   /* --- Main grid ------------------------------------------------------------- */
   .grid {
@@ -345,6 +374,7 @@
     }
     .model,
     .word,
+    .design,
     .help-btn,
     .settings-btn .txt,
     .statusbar,

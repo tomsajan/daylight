@@ -13,6 +13,14 @@ class UiState {
   timeSheetOpen = $state(false);
   /** Set by the search box so other controls can focus it. */
   focusSearch: () => void = () => {};
+  /** Phone layout (tabbed views in a scrolling column); matches the CSS breakpoint. */
+  phone = $state(false);
+
+  constructor() {
+    const query = window.matchMedia('(max-width: 759px)');
+    this.phone = query.matches;
+    query.addEventListener('change', (e) => (this.phone = e.matches));
+  }
 
   closeAll(): boolean {
     const any = this.settingsOpen || this.helpOpen || this.timeSheetOpen;
