@@ -16,7 +16,7 @@
   import { deg, delta, dur, durDelta, PHASE_CODE } from './lib';
   import { ui } from './ui.svelte';
 
-  type SortKey = 'order' | 'name' | 'clock' | 'phase' | 'alt' | 'az' | 'rise' | 'set' | 'len' | 'change' | 'noon' | 'noonAlt';
+  type SortKey = 'order' | 'name' | 'clock' | 'phase' | 'alt' | 'az' | 'rise' | 'set' | 'len' | 'change' | 'am' | 'pm' | 'noon' | 'noonAlt';
 
   let sortKey = $state<SortKey>('order');
   let sortDir = $state<1 | -1>(1);
@@ -66,6 +66,8 @@
     set: (r) => r.s.day.sunset?.minutes ?? Infinity,
     len: (r) => r.s.day.daylightMin,
     change: (r) => r.s.change,
+    am: (r) => r.s.morningChange ?? -Infinity,
+    pm: (r) => r.s.eveningChange ?? -Infinity,
     noon: (r) => r.s.day.solarNoon.minutes,
     noonAlt: (r) => r.s.day.solarNoon.altitude,
   };
@@ -124,6 +126,8 @@
     { key: 'set', label: 'Set', title: 'Sunset on the selected date', cls: 'r' },
     { key: 'len', label: 'Daylight', title: 'Length of daylight; below it, the difference from the selected place', cls: 'r' },
     { key: 'change', label: 'Δ Day', title: 'Change in daylight since the day before', cls: 'r' },
+    { key: 'am', label: 'Δ AM', title: 'Part of the change won or lost in the morning (sunrise earlier: +, later: −)', cls: 'r' },
+    { key: 'pm', label: 'Δ PM', title: 'Part of the change won or lost in the evening (sunset later: +, earlier: −)', cls: 'r' },
     { key: 'noon', label: 'Noon', title: 'Solar noon: when the sun is highest', cls: 'r' },
     { key: 'noonAlt', label: 'Noon alt', title: 'Sun altitude at solar noon', cls: 'r' },
   ];
@@ -181,6 +185,9 @@
             {:else if r.vsSelected != null}<small>{durDelta(r.vsSelected)} vs selected</small>{/if}
           </td>
           <td class="num r" class:up={r.s.change > 0.004} class:down={r.s.change < -0.004}>{delta(r.s.change)}</td>
+          {#each [r.s.morningChange, r.s.eveningChange] as v, k (k)}
+            <td class="num r" class:up={v != null && v > 0.004} class:down={v != null && v < -0.004}>{v == null ? '—' : delta(v)}</td>
+          {/each}
           <td class="num r">{formatMinutes(r.s.day.solarNoon.minutes, hc)}</td>
           <td class="num r">{deg(r.s.day.solarNoon.altitude)}</td>
           <td class="strip-c">

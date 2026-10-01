@@ -16,7 +16,7 @@
     [['1', '…', '6'], 'Select place 1–6'],
     [['A'], 'Globe tap: switch Replace / Add'],
     [['/'], 'Search'],
-    [['M'], 'Year chart: rise & set / day length'],
+    [['M'], 'Year chart: rise & set / day length / Δ per day'],
     [['S'], 'Settings'],
     [['?'], 'This help'],
     [['Esc'], 'Close panels'],

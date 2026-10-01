@@ -12,9 +12,9 @@
   import { Light } from '$core/astro/daylight';
   import { visibleLevel } from '$core/charts/palette';
   import { addDays } from '$core/time/timescale';
-  import { formatDuration, formatMinutes } from '$core/time/format';
+  import { formatDelta, formatDuration, formatMinutes } from '$core/time/format';
   import YearChart from '$core/charts/YearChart.svelte';
-  import { almanacPalette, almanacYearSeries, dayMonth, inkOf, yearAnnotations } from '../almanac.svelte';
+  import { almanacPalette, almanacYearSeries, dayMonth, inkOf, shiftSentence, yearAnnotations } from '../almanac.svelte';
 
   let chart: YearChart | undefined = $state();
   let zoomed = $state({ x: false, y: false });
@@ -25,12 +25,14 @@
   const series = $derived(almanacYearSeries());
   const year = $derived(app.date.year);
   const bands = $derived(settings.chartMode === 'bands');
+  const change = $derived(settings.chartMode === 'change');
   const others = $derived(orderedPlaces().slice(1));
   const annotations = $derived(app.selected ? yearAnnotations(app.selected) : []);
 
   // The day the readout describes: under the pointer, else the selected day.
   const readIndex = $derived(hover?.dayIndex ?? selectedDayIndex());
   const readDay = $derived(series[0]?.days[Math.max(0, Math.min((series[0]?.days.length ?? 1) - 1, readIndex))]);
+  const readPrev = $derived(readIndex > 0 ? series[0]?.days[readIndex - 1] : series[0]?.previous);
 
   const legend = $derived(
     (
@@ -71,13 +73,14 @@
   <div class="toolbar">
     <div class="tabs" role="radiogroup" aria-label="What the chart shows">
       <button type="button" role="radio" aria-checked={bands} onclick={() => (settings.chartMode = 'bands')}>Sunrise &amp; sunset</button>
-      <button type="button" role="radio" aria-checked={!bands} onclick={() => (settings.chartMode = 'daylength')}>Day length</button>
+      <button type="button" role="radio" aria-checked={settings.chartMode === 'daylength'} onclick={() => (settings.chartMode = 'daylength')}>Day length</button>
+      <button type="button" role="radio" aria-checked={change} onclick={() => (settings.chartMode = 'change')}>Daily change</button>
     </div>
     <div class="zoom" role="group" aria-label="Zoom">
       <span class="zl">Dates</span>
       <button type="button" onclick={() => chart?.zoomOut()} disabled={!zoomed.x} aria-label="Zoom out dates" title="Show more days">−</button>
       <button type="button" onclick={() => chart?.zoomIn()} aria-label="Zoom in dates" title="Show fewer days, around the selected date">+</button>
-      <span class="zl">{bands ? 'Hours' : 'Length'}</span>
+      <span class="zl">{bands ? 'Hours' : change ? 'Minutes' : 'Length'}</span>
       <button type="button" onclick={() => chart?.zoomTimeOut()} disabled={!zoomed.y} aria-label="Zoom out hours" title="Show more of the day">−</button>
       <button type="button" onclick={() => chart?.zoomTimeIn()} aria-label="Zoom in hours" title="Show less of the day">+</button>
       <button type="button" class="reset" onclick={() => chart?.resetZoom()} disabled={!zoomed.x && !zoomed.y}>Whole year</button>
@@ -112,6 +115,10 @@
         midnight sun, the sun never sets.
       {:else if readDay.polarNight}
         polar night, the sun never rises.
+      {:else if change && readPrev}
+        {formatDuration(readDay.daylightMin)} of daylight, {Math.round(Math.abs(readDay.daylightMin - readPrev.daylightMin) * 60) < 1
+          ? 'the same as the day before'
+          : `${formatDelta(readDay.daylightMin - readPrev.daylightMin)} on the day before`}. {shiftSentence(readPrev, readDay)}
       {:else}
         sunrise {readDay.sunrise ? formatMinutes(readDay.sunrise.minutes, hc) : 'none'}, sunset
         {readDay.sunset ? formatMinutes(readDay.sunset.minutes, hc) : 'none'}, {formatDuration(readDay.daylightMin)} of daylight.
@@ -137,6 +144,14 @@
           {/each}
         </ul>
       {/if}
+    {:else if change}
+      <ul class="key" aria-label="Colour key">
+        <li><span class="sw" style="background: {palette.light[Light.Day]}; opacity: .6"></span><span>Days getting longer</span></li>
+        <li><span class="sw" style="background: {palette.light[Light.Civil]}; opacity: .6"></span><span>Days getting shorter</span></li>
+        {#each orderedPlaces() as p (p.id)}
+          <li><span class="sw line" style="--c: {inkOf(p)}"></span>{p.name} <em>total</em></li>
+        {/each}
+      </ul>
     {:else}
       <ul class="key" aria-label="Places">
         {#each orderedPlaces() as p (p.id)}
@@ -156,6 +171,10 @@
       bottom. Where the pale band is tall, the day is long. Dashed rules mark the solstices and equinoxes{annotations.some((a) => a.kind === 'clock')
         ? '; dotted rules mark the days the clocks change, where sunrise and sunset jump by an hour'
         : ''}.
+    {:else if change}
+      How much daylight {app.selected?.name ?? 'the selected place'} gains or loses from one day to the next through {year}. The dashed line is the
+      part won or lost in the morning, as sunrise moves; the dotted line is the evening, as sunset moves. Together they make the total. Around the
+      solstices they can pull in opposite directions: just before the shortest day the evenings already lengthen while the mornings still darken.
     {:else}
       Hours of daylight on each day of {year}, one line per place{app.places.length < MAX_PLACES ? ' (add places below to compare them)' : ''}. The
       curves cross at the equinoxes, when day and night are close to equal everywhere.

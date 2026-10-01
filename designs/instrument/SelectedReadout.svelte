@@ -55,6 +55,20 @@
         <dt class="lbl">Since yesterday</dt>
         <dd class="num" class:up={summary.change > 0.004} class:down={summary.change < -0.004}>{delta(summary.change)}</dd>
       </div>
+      {#if summary.morningChange != null && summary.eveningChange != null}
+        <div>
+          <dt class="lbl" title="Daylight gained (+) or lost (−) in the morning: sunrise moved earlier (+) or later (−)">… in the morning</dt>
+          <dd class="num" class:up={summary.morningChange > 0.004} class:down={summary.morningChange < -0.004}>
+            {delta(summary.morningChange)} <small>{summary.morningChange > 0.004 ? 'rise earlier' : summary.morningChange < -0.004 ? 'rise later' : ''}</small>
+          </dd>
+        </div>
+        <div>
+          <dt class="lbl" title="Daylight gained (+) or lost (−) in the evening: sunset moved later (+) or earlier (−)">… in the evening</dt>
+          <dd class="num" class:up={summary.eveningChange > 0.004} class:down={summary.eveningChange < -0.004}>
+            {delta(summary.eveningChange)} <small>{summary.eveningChange > 0.004 ? 'set later' : summary.eveningChange < -0.004 ? 'set earlier' : ''}</small>
+          </dd>
+        </div>
+      {/if}
       <div><dt class="lbl">Solar noon</dt><dd class="num">{formatMinutes(d.solarNoon.minutes, hc)}</dd></div>
       <div><dt class="lbl">Noon altitude</dt><dd class="num">{deg(d.solarNoon.altitude)}</dd></div>
       <div>

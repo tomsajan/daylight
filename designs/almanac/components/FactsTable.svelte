@@ -5,7 +5,7 @@
   import { daySummary, sunNow } from '$core/state/views';
   import { Light, LIGHT_NAMES, type SunEvent } from '$core/astro/daylight';
   import { sunPosition } from '$core/astro/sun';
-  import { formatClock, formatDelta, formatDuration, formatMinutes, formatOffset } from '$core/time/format';
+  import { formatClock, formatDelta, formatDuration, formatMinutes, formatOffset, formatShift } from '$core/time/format';
   import { formatCoordinates } from '$core/geo/place';
   import { TIME_SCALE_LABELS } from '$core/time/timescale';
   import { dayMonth, direction, polarStats, zoneName } from '../almanac.svelte';
@@ -57,11 +57,19 @@
       <tbody>
         <tr>
           <th scope="row">Sunrise</th>
-          <td><span class="v">{eventTime(s.day.sunrise)}</span> <span class="n">{bearing(s.day.sunrise)}</span></td>
+          <td>
+            <span class="v">{eventTime(s.day.sunrise)}</span> <span class="n">{bearing(s.day.sunrise)}{s.morningChange != null
+                ? `, ${formatShift('sunrise', s.morningChange)} than yesterday`
+                : ''}</span>
+          </td>
         </tr>
         <tr>
           <th scope="row">Sunset</th>
-          <td><span class="v">{eventTime(s.day.sunset)}</span> <span class="n">{bearing(s.day.sunset)}</span></td>
+          <td>
+            <span class="v">{eventTime(s.day.sunset)}</span> <span class="n">{bearing(s.day.sunset)}{s.eveningChange != null
+                ? `, ${formatShift('sunset', s.eveningChange)} than yesterday`
+                : ''}</span>
+          </td>
         </tr>
         <tr>
           <th scope="row">Daylight</th>

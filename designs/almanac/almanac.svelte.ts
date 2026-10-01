@@ -7,13 +7,13 @@
 import { app } from '$core/state/app.svelte';
 import { resolvedTheme } from '$core/state/settings.svelte';
 import { orderedPlaces, selectedDayIndex, sunNow } from '$core/state/views';
-import { Light, LIGHT_NAMES, type DayLight } from '$core/astro/daylight';
+import { daylightChange, Light, LIGHT_NAMES, type DayLight } from '$core/astro/daylight';
 import type { ChartPalette } from '$core/charts/palette';
 import type { YearSeries } from '$core/charts/YearChart.svelte';
 import type { DaySeries } from '$core/charts/DayChart.svelte';
 import type { GlobeMarker } from '$core/globe/GlobeRenderer';
 import type { Place } from '$core/geo/place';
-import { civilDateOf, sameDate, wallMidnight, type CivilDate } from '$core/time/timescale';
+import { addDays, civilDateOf, sameDate, wallMidnight, type CivilDate } from '$core/time/timescale';
 import { compassPoint, formatDuration, timeZoneName } from '$core/time/format';
 
 // --- Colours -----------------------------------------------------------------
@@ -79,7 +79,8 @@ export function almanacPalette(): ChartPalette {
 // --- Series for the shared charts and globe -------------------------------------
 
 export function almanacYearSeries(): YearSeries[] {
-  return orderedPlaces().map((p) => ({ id: p.id, name: p.name, color: inkOf(p), days: app.yearFor(p) }));
+  const lastYear = addDays({ year: app.date.year, month: 1, day: 1 }, -1);
+  return orderedPlaces().map((p) => ({ id: p.id, name: p.name, color: inkOf(p), days: app.yearFor(p), previous: app.dayFor(p, lastYear) }));
 }
 
 export function almanacDaySeries(): DaySeries[] {
@@ -227,7 +228,21 @@ export function daySentence(place: Place): string {
   } else if (turn) {
     tail = `; the days get ${longer} until ${dayMonth(turn.date, year)}`;
   }
-  return `${head}, ${compare}${tail}.`;
+  return `${head}, ${compare}${tail}.${same ? '' : ` ${shiftSentence(prev, d)}`}`;
+}
+
+/**
+ * Where a day's change in daylight comes from: "The sun rises 1 min 32 s later
+ * and sets 2 min 11 s earlier than the day before." Empty when it can't be split.
+ */
+export function shiftSentence(prev: DayLight, d: DayLight): string {
+  const { morning, evening } = daylightChange(prev, d);
+  if (morning == null || evening == null) return '';
+  const rise = Math.round(Math.abs(morning) * 60) < 1 ? 'rises at the same time' : `rises ${amount(morning)} ${morning > 0 ? 'earlier' : 'later'}`;
+  const set = Math.round(Math.abs(evening) * 60) < 1 ? 'sets at the same time' : `sets ${amount(evening)} ${evening > 0 ? 'later' : 'earlier'}`;
+  // "but" when one end of the day gains while the other loses.
+  const join = Math.sign(morning) * Math.sign(evening) < 0 ? 'but' : 'and';
+  return `The sun ${rise} ${join} ${set} than the day before.`;
 }
 
 /** "At 14:32 it is daylight in Prague, with the sun 28° above the south-west horizon." */

@@ -640,17 +640,23 @@
   const MORNING_DASH = [7, 4];
   const EVENING_DASH = [0.5, 4];
 
-  function drawChangeLegend(ctx: CanvasRenderingContext2D, p: { left: number; top: number }, pal: ChartPalette, totalColor: string) {
-    const items: [string, string, number[], number][] = [
-      [totalColor, 'Total', [], 2.5],
-      [pal.morning ?? pal.text, 'Morning (sunrise)', MORNING_DASH, 1.75],
-      [pal.evening ?? pal.text, 'Evening (sunset)', EVENING_DASH, 2],
-    ];
+  function drawChangeLegend(ctx: CanvasRenderingContext2D, p: { left: number; top: number; width: number }, pal: ChartPalette, totalColor: string) {
     ctx.font = pal.font;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    const widths = items.map(([, t]) => ctx.measureText(t).width + 30);
-    const w = widths.reduce((a, b) => a + b, 0) + 8;
+    // Long labels when they fit, short ones on narrow charts.
+    const layout = (labels: string[]) => {
+      const widths = labels.map((t) => ctx.measureText(t).width + 30);
+      return { labels, widths, w: widths.reduce((a, b) => a + b, 0) + 8 };
+    };
+    let fit = layout(['Total', 'Morning (sunrise)', 'Evening (sunset)']);
+    if (fit.w > p.width - 12) fit = layout(['Total', 'Morning', 'Evening']);
+    const { widths, w } = fit;
+    const items: [string, string, number[], number][] = [
+      [totalColor, fit.labels[0], [], 2.5],
+      [pal.morning ?? pal.text, fit.labels[1], MORNING_DASH, 1.75],
+      [pal.evening ?? pal.text, fit.labels[2], EVENING_DASH, 2],
+    ];
     const x = p.left + 6;
     const y = p.top + 6;
     ctx.fillStyle = pal.background;
