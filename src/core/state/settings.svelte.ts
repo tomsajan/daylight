@@ -1,6 +1,9 @@
 import type { SunriseDefinition } from '../astro/daylight';
 import type { TimeScaleKind } from '../time/timescale';
 
+/** Year chart: light bands, hours of daylight, or the day-to-day change. */
+export type ChartMode = 'bands' | 'daylength' | 'change';
+
 export interface Settings {
   /** Which clock times are shown in. */
   timeScale: TimeScaleKind;
@@ -12,8 +15,7 @@ export interface Settings {
   /** Twilight phases drawn in charts. */
   twilight: { civil: boolean; nautical: boolean; astronomical: boolean };
   theme: 'auto' | 'light' | 'dark';
-  /** Year chart: light bands or day length curve. */
-  chartMode: 'bands' | 'daylength';
+  chartMode: ChartMode;
   /** Globe lighting: day 1 = natural (0.5–2); night 0 = black (0–0.4). */
   globeBrightness: { day: number; night: number };
   globe: {

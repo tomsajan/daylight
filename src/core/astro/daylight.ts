@@ -252,6 +252,39 @@ function transit(around: number, lat: number, lon: number, hourAngle: number) {
   return { time: Math.round(t), altitude: sunPositionFrom(solarCoordinates(t), lat, lon).altitude };
 }
 
+export interface DaylightChange {
+  /** Change in daylight from the previous day, minutes (positive = longer). */
+  total: number;
+  /**
+   * The part gained in the morning: how much earlier the sun rose than a day
+   * before, minutes (negative = later sunrise, so daylight lost in the morning).
+   * Null when it can't be split (polar day/night, several sunrises in a day).
+   */
+  morning: number | null;
+  /** The part gained in the evening: how much later the sun set, minutes. */
+  evening: number | null;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * How daylight changed from one day to the next, and whether the change came
+ * in the morning or the evening. Measured on real instants, so clock changes
+ * (DST) don't count as sunrise moving by an hour.
+ */
+export function daylightChange(prev: DayLight, day: DayLight): DaylightChange {
+  const total = day.daylightMin - prev.daylightMin;
+  let morning: number | null = null;
+  let evening: number | null = null;
+  if (prev.sunrise && day.sunrise && prev.sunset && day.sunset) {
+    morning = (prev.sunrise.time + DAY_MS - day.sunrise.time) / MINUTE;
+    evening = (day.sunset.time - prev.sunset.time - DAY_MS) / MINUTE;
+    // With more than one daylight period in a day the two halves don't add up; don't guess.
+    if (Math.abs(morning + evening - total) > 0.5) morning = evening = null;
+  }
+  return { total, morning, evening };
+}
+
 /** Every day of a calendar year (in the given time scale). */
 export function computeYear(
   place: { lat: number; lon: number },

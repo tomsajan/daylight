@@ -44,6 +44,18 @@ export function formatDelta(minutes: number): string {
   return m ? `${sign}${m} min ${s} s` : `${sign}${s} s`;
 }
 
+/**
+ * How far sunrise or sunset moved since the day before, from the daylight it
+ * gained (positive) or lost: ("sunrise", 1.8) → "1 min 48 s earlier",
+ * ("sunset", 1.8) → "1 min 48 s later".
+ */
+export function formatShift(event: 'sunrise' | 'sunset', gain: number): string {
+  const amount = formatDelta(gain).slice(1);
+  if (Math.round(Math.abs(gain) * 60) === 0) return 'no change';
+  const earlier = event === 'sunrise' ? gain > 0 : gain < 0;
+  return `${amount} ${earlier ? 'earlier' : 'later'}`;
+}
+
 const dateFormats = new Map<string, Intl.DateTimeFormat>();
 
 /** Locale-formatted date. style: 'long' → "Sunday, 21 June 2026", 'medium' → "21 Jun 2026", 'short' → "21 Jun". */

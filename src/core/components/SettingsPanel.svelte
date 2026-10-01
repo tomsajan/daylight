@@ -72,6 +72,7 @@
       <div class="dl-segmented" role="radiogroup" aria-label="Year chart">
         <label><input type="radio" name="dl-chart" value="bands" bind:group={settings.chartMode} /><span>Sunrise &amp; sunset</span></label>
         <label><input type="radio" name="dl-chart" value="daylength" bind:group={settings.chartMode} /><span>Day length</span></label>
+        <label><input type="radio" name="dl-chart" value="change" bind:group={settings.chartMode} /><span>Daily change</span></label>
       </div>
     </fieldset>
   {/if}

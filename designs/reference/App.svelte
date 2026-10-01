@@ -25,7 +25,7 @@
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import { LIGHT_NAMES } from '$core/astro/daylight';
   import { addDays } from '$core/time/timescale';
-  import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatMinutes } from '$core/time/format';
+  import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatShift, formatMinutes } from '$core/time/format';
   import { formatCoordinates } from '$core/geo/place';
 
   let addMode = $state(false);
@@ -85,6 +85,9 @@
         <dt>Sunrise</dt><dd>{summary.day.sunrise ? formatMinutes(summary.day.sunrise.minutes, hc) : '—'}</dd>
         <dt>Sunset</dt><dd>{summary.day.sunset ? formatMinutes(summary.day.sunset.minutes, hc) : '—'}</dd>
         <dt>Daylight</dt><dd>{formatDuration(summary.day.daylightMin)} ({formatDelta(summary.change)})</dd>
+        {#if summary.morningChange != null && summary.eveningChange != null}
+          <dt>Since yesterday</dt><dd>sunrise {formatShift('sunrise', summary.morningChange)}, sunset {formatShift('sunset', summary.eveningChange)}</dd>
+        {/if}
         <dt>Solar noon</dt><dd>{formatMinutes(summary.day.solarNoon.minutes, hc)} at {summary.day.solarNoon.altitude.toFixed(1)}°</dd>
         <dt>Longest day</dt><dd>{formatDate(summary.longest.date, 'short')} · {formatDuration(summary.longest.daylightMin)}</dd>
         <dt>Shortest day</dt><dd>{formatDate(summary.shortest.date, 'short')} · {formatDuration(summary.shortest.daylightMin)}</dd>
@@ -100,9 +103,11 @@
   <section class="year">
     <div class="chart-head">
       <h3>{app.date.year}</h3>
-      <button class="dl-btn" onclick={() => (settings.chartMode = settings.chartMode === 'bands' ? 'daylength' : 'bands')}>
-        {settings.chartMode === 'bands' ? 'Show day length' : 'Show sunrise & sunset'}
-      </button>
+      <select class="dl-input" bind:value={settings.chartMode} aria-label="Year chart shows">
+        <option value="bands">Sunrise &amp; sunset</option>
+        <option value="daylength">Day length</option>
+        <option value="change">Daily change</option>
+      </select>
       <button class="dl-btn" onclick={() => yearChart?.zoomIn()}>+</button>
       <button class="dl-btn" onclick={() => yearChart?.zoomOut()}>−</button>
       <button class="dl-btn" onclick={() => yearChart?.resetZoom()}>Reset</button>

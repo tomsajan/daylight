@@ -10,6 +10,9 @@ export interface ChartPalette {
   /** Selected date / current time marker. */
   marker: string;
   font: string;
+  /** Change chart: daylight gained/lost in the morning and in the evening. */
+  morning?: string;
+  evening?: string;
 }
 
 export const LIGHT_PALETTE: ChartPalette = {

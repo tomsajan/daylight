@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as A from 'astronomy-engine';
 import { sunPosition } from './sun';
-import { computeDay, computeYear, Light } from './daylight';
+import { computeDay, computeYear, daylightChange, Light } from './daylight';
 import { addDays, makeTimeScale, tzOffsetMinutes, type CivilDate } from '../time/timescale';
 
 const CITIES = [
@@ -158,5 +158,39 @@ describe('time scales', () => {
         expect(total).toBeCloseTo(day.lengthMin, 3);
       }
     }
+  });
+});
+
+describe('daylight change', () => {
+  const prague = { lat: 50.08, lon: 14.43, tz: 'Europe/Prague' };
+  const scale = makeTimeScale('local', prague);
+  const change = (date: CivilDate) => daylightChange(computeDay(prague, addDays(date, -1), scale), computeDay(prague, date, scale));
+
+  it('splits the change into morning and evening parts that add up', () => {
+    const c = change({ year: 2026, month: 10, day: 1 });
+    expect(c.total).toBeLessThan(-3);
+    expect(c.morning!).toBeLessThan(0);
+    expect(c.evening!).toBeLessThan(0);
+    expect(c.morning! + c.evening!).toBeCloseTo(c.total, 1);
+  });
+
+  it('ignores clock changes', () => {
+    const c = change({ year: 2026, month: 10, day: 25 });
+    expect(Math.abs(c.morning!)).toBeLessThan(3);
+    expect(Math.abs(c.evening!)).toBeLessThan(3);
+  });
+
+  it('shows sunsets getting later before the winter solstice while sunrises still get later', () => {
+    const c = change({ year: 2026, month: 12, day: 18 });
+    expect(c.morning!).toBeLessThan(0);
+    expect(c.evening!).toBeGreaterThan(0);
+  });
+
+  it('cannot split polar night', () => {
+    const tromso = { lat: 69.65, lon: 18.96, tz: 'Europe/Oslo' };
+    const s = makeTimeScale('local', tromso);
+    const c = daylightChange(computeDay(tromso, { year: 2026, month: 12, day: 20 }, s), computeDay(tromso, { year: 2026, month: 12, day: 21 }, s));
+    expect(c.total).toBe(0);
+    expect(c.morning).toBeNull();
   });
 });

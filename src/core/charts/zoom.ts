@@ -104,6 +104,10 @@ export class ChartZoom {
     this.opts.yDown = yDown;
   }
 
+  setMinSpan(minSpan: { x: number; y: number }): void {
+    this.opts.minSpan = minSpan;
+  }
+
   /** Show the full vertical extent, keeping the horizontal view. */
   resetY(): void {
     this.view = this.clamp({ x: this.view.x, y: [...this.opts.extent.y] });

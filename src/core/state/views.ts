@@ -4,14 +4,14 @@
  *
  *   const series = $derived(yearSeries());
  */
-import { Light, type DayLight } from '../astro/daylight';
+import { daylightChange, Light, type DayLight } from '../astro/daylight';
 import { sunPosition } from '../astro/sun';
 import { DARK_PALETTE, LIGHT_PALETTE, type ChartPalette } from '../charts/palette';
 import type { YearSeries } from '../charts/YearChart.svelte';
 import type { DaySeries } from '../charts/DayChart.svelte';
 import type { GlobeMarker, GlobeOptions } from '../globe/GlobeRenderer';
 import type { Place } from '../geo/place';
-import { dayOfYear, minutesOfDay } from '../time/timescale';
+import { addDays, dayOfYear, minutesOfDay } from '../time/timescale';
 import { app } from './app.svelte';
 import { resolvedTheme, settings } from './settings.svelte';
 
@@ -23,7 +23,14 @@ export function orderedPlaces(): Place[] {
 }
 
 export function yearSeries(): YearSeries[] {
-  return orderedPlaces().map((p) => ({ id: p.id, name: p.name, color: app.colorOf(p), days: app.yearFor(p) }));
+  const lastYear = addDays({ year: app.date.year, month: 1, day: 1 }, -1);
+  return orderedPlaces().map((p) => ({
+    id: p.id,
+    name: p.name,
+    color: app.colorOf(p),
+    days: app.yearFor(p),
+    previous: app.dayFor(p, lastYear),
+  }));
 }
 
 export function daySeries(): DaySeries[] {
@@ -70,6 +77,12 @@ export interface DaySummary {
   day: DayLight;
   /** Daylight change from the previous day, minutes. */
   change: number;
+  /**
+   * Where that change happened, minutes: gained in the morning (sunrise earlier)
+   * and in the evening (sunset later); negative = lost. Null in polar day/night.
+   */
+  morningChange: number | null;
+  eveningChange: number | null;
   /** Longest and shortest days of the year (by daylight). */
   longest: DayLight;
   shortest: DayLight;
@@ -83,7 +96,7 @@ export function daySummary(place: Place | null = app.selected): DaySummary | nul
   const year = app.yearFor(place);
   const i = selectedDayIndex();
   const day = year[i] ?? app.dayFor(place);
-  const prev = i > 0 ? year[i - 1] : app.yearFor(place, app.date.year - 1).at(-1)!;
+  const prev = i > 0 ? year[i - 1] : app.dayFor(place, addDays(app.date, -1));
   let longest = year[0];
   let shortest = year[0];
   for (const d of year) {
@@ -91,5 +104,6 @@ export function daySummary(place: Place | null = app.selected): DaySummary | nul
     if (d.daylightMin < shortest.daylightMin) shortest = d;
   }
   const seg = day.segments.find((s) => app.time >= s.start && app.time < s.end);
-  return { place, day, change: day.daylightMin - prev.daylightMin, longest, shortest, lightNow: seg?.light ?? Light.Night };
+  const c = daylightChange(prev, day);
+  return { place, day, change: c.total, morningChange: c.morning, eveningChange: c.evening, longest, shortest, lightNow: seg?.light ?? Light.Night };
 }

@@ -3,6 +3,9 @@
   - mode "bands": the day split into night / twilights / daylight (time of day
     on the vertical axis); compared places appear as sunrise/sunset lines.
   - mode "daylength": hours of daylight per day, one curve per place.
+  - mode "change": minutes of daylight gained or lost since the day before,
+    split into the morning part (sunrise earlier/later) and the evening part
+    (sunset later/earlier) for the primary place; totals for compared places.
   - `annotations`: labelled marks along the top (see core/state/seasons.ts).
   Zoom: wheel or horizontal pinch = dates, Shift+wheel or vertical pinch = hours,
   drag to pan, double-click/double-tap to reset, click/tap to pick a day.
@@ -16,6 +19,8 @@
     name: string;
     color: string;
     days: import('../astro/daylight').DayLight[];
+    /** The day before the first one (Dec 31 of the year before), for the change on Jan 1. */
+    previous?: import('../astro/daylight').DayLight;
   }
 
   export interface YearAnnotation {
@@ -32,7 +37,8 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { app } from '../state/app.svelte';
-  import { Light } from '../astro/daylight';
+  import { daylightChange, Light, type DaylightChange } from '../astro/daylight';
+  import type { ChartMode } from '../state/settings.svelte';
   import { formatMinutes, formatDuration, type HourCycle } from '../time/format';
   import { ChartZoom, type Domain } from './zoom';
   import { LIGHT_PALETTE, visibleLevel, type ChartPalette } from './palette';
@@ -41,7 +47,7 @@
     /** First series is the primary place (drawn as bands). */
     series: YearSeries[];
     year: number;
-    mode?: 'bands' | 'daylength';
+    mode?: ChartMode;
     /** Index of the selected day in `days`. */
     selectedIndex?: number | null;
     /** Current time of day (minutes) for the marker dot in bands mode. */
@@ -98,7 +104,43 @@
   let zoom: ChartZoom | null = null;
 
   const dayCount = $derived(series[0]?.days.length ?? 365);
-  const extent = $derived<Domain>({ x: [0, dayCount], y: [0, 1440] });
+
+  /** Day-to-day change per series and day (null for Jan 1 without `previous`). */
+  const changes = $derived(
+    mode === 'change'
+      ? series.map((s) =>
+          s.days.map((d, i) => {
+            const prev = i > 0 ? s.days[i - 1] : s.previous;
+            return prev ? daylightChange(prev, d) : null;
+          }),
+        )
+      : [],
+  );
+
+  /** Symmetric vertical range for the change chart, minutes per day. */
+  const changeLimit = $derived.by(() => {
+    if (mode !== 'change') return 0;
+    // Near the polar circles a few days around the start and end of polar day or
+    // night jump by tens of minutes; scale to the bulk of each year (97th
+    // percentile) so those spikes run off the chart instead of flattening the rest.
+    let v = 0;
+    for (const list of changes) {
+      const values: number[] = [];
+      for (const c of list) {
+        if (!c) continue;
+        values.push(Math.abs(c.total));
+        if (c.morning != null && c.evening != null) values.push(Math.abs(c.morning), Math.abs(c.evening));
+      }
+      values.sort((a, b) => a - b);
+      v = Math.max(v, values[Math.floor((values.length - 1) * 0.97)] ?? 0);
+    }
+    v *= 1.12;
+    for (const step of [0.5, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440]) if (step >= v) return step;
+    return 1440;
+  });
+
+  const extent = $derived<Domain>({ x: [0, dayCount], y: mode === 'change' ? [-changeLimit, changeLimit] : [0, 1440] });
+  const minSpanY = $derived(mode === 'change' ? changeLimit / 10 : 60);
   let view = $state<Domain>({ x: [0, 365], y: [0, 1440] });
 
   // --- Dragging the sun / selected day ------------------------------------------
@@ -148,7 +190,7 @@
   }
 
   // Extra room at the top for annotation labels, when there are any.
-  const margin = $derived({ left: 44, right: 10, top: annotations.length ? 24 : 10, bottom: 24 });
+  const margin = $derived({ left: mode === 'change' ? 56 : 44, right: 10, top: annotations.length ? 24 : 10, bottom: 24 });
   const plot = () => ({
     left: margin.left,
     top: margin.top,
@@ -179,7 +221,7 @@
   onMount(() => {
     zoom = new ChartZoom(canvas, {
       extent: $state.snapshot(extent),
-      minSpan: { x: 7, y: 60 },
+      minSpan: { x: 7, y: untrack(() => minSpanY) },
       plot,
       touchScroll: untrack(() => touchScroll),
       yDown: yDown,
@@ -219,8 +261,10 @@
     };
   });
 
-  // New year length or mode: keep the date zoom; a mode change resets the vertical axis.
+  // New year length or mode: keep the date zoom; a mode change resets the vertical axis,
+  // and so does a new range in the change chart (another place, another year).
   let lastMode: string | null = null;
+  let lastY = '';
   $effect(() => {
     const e = $state.snapshot(extent) as Domain;
     const down = yDown;
@@ -228,9 +272,12 @@
     untrack(() => {
       if (!zoom) return;
       zoom.setYDown(down);
+      zoom.setMinSpan({ x: 7, y: minSpanY });
       zoom.setExtent(e, true);
-      if (lastMode !== null && m !== lastMode) zoom.resetY();
+      const y = e.y.join();
+      if ((lastMode !== null && m !== lastMode) || (m === 'change' && y !== lastY)) zoom.resetY();
       lastMode = m;
+      lastY = y;
     });
   });
 
@@ -259,12 +306,12 @@
   });
 
   $effect(() => {
-    draw(series, mode, view, width, height, selectedIndex, currentMinutes, twilight, hourCycle, palette, hover, showNoon, showCompare, yDown, annotations);
+    draw(series, mode, view, width, height, selectedIndex, currentMinutes, twilight, hourCycle, palette, hover, showNoon, showCompare, yDown, annotations, changes);
   });
 
   function draw(
     series: YearSeries[],
-    mode: 'bands' | 'daylength',
+    mode: ChartMode,
     view: Domain,
     width: number,
     height: number,
@@ -278,6 +325,7 @@
     showCompare: boolean,
     yDown: boolean,
     annotations: YearAnnotation[],
+    changes: (DaylightChange | null)[][],
   ) {
     if (!canvas || !width || !height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -348,10 +396,37 @@
       ctx.globalAlpha = 1;
     }
 
+    if (primary && mode === 'change') {
+      // Area between zero and the total change: daylight colour above (gains), twilight below (losses).
+      const list = changes[0] ?? [];
+      const y0 = Y(0);
+      const from = Math.max(0, first - 1);
+      const to = Math.min(list.length - 1, last + 1);
+      const area = new Path2D();
+      area.moveTo(X(from + 0.5), y0);
+      for (let i = from; i <= to; i++) area.lineTo(X(i + 0.5), Y(list[i]?.total ?? 0));
+      area.lineTo(X(to + 0.5), y0);
+      area.closePath();
+      ctx.globalAlpha = 0.5;
+      for (const [top, bottom, color] of [
+        [p.top, y0, pal.light[Light.Day]],
+        [y0, p.top + p.height, pal.light[Light.Civil]],
+      ] as const) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(p.left, Math.min(top, bottom), p.width, Math.abs(bottom - top));
+        ctx.clip();
+        ctx.fillStyle = color;
+        ctx.fill(area);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // Grid.
     ctx.lineWidth = 1;
     ctx.strokeStyle = pal.grid;
-    const yStep = timeStep(view.y[1] - view.y[0], p.height);
+    const yStep = mode === 'change' ? changeStep(view.y[1] - view.y[0], p.height) : timeStep(view.y[1] - view.y[0], p.height);
     for (let m = Math.ceil(view.y[0] / yStep) * yStep; m <= view.y[1]; m += yStep) {
       const y = Math.round(Y(m)) + 0.5;
       ctx.beginPath();
@@ -385,7 +460,13 @@
     ctx.globalAlpha = 1;
 
     // Lines: solar noon, compared places, day length curves.
-    const curve = (days: YearSeries['days'], value: (d: YearSeries['days'][number]) => number | null, color: string, lw: number, dash: number[] = []) => {
+    const curve = (
+      days: YearSeries['days'],
+      value: (d: YearSeries['days'][number], i: number) => number | null,
+      color: string,
+      lw: number,
+      dash: number[] = [],
+    ) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = lw;
       ctx.setLineDash(dash);
@@ -393,7 +474,7 @@
       let pen = false;
       let prev: number | null = null;
       for (let i = Math.max(0, first - 1); i <= Math.min(days.length - 1, last + 1); i++) {
-        const v = value(days[i]);
+        const v = value(days[i], i);
         // Break the line at gaps and at jumps (DST, wrap past midnight).
         if (v == null || (prev != null && Math.abs(v - prev) > 45)) {
           pen = false;
@@ -422,13 +503,33 @@
           }
         }
       }
-    } else {
+    } else if (mode === 'daylength') {
       for (const s of [...series].reverse()) {
         const isPrimary = s === primary;
         for (const [color, lw] of [[pal.background, isPrimary ? 5 : 4], [s.color, isPrimary ? 2.5 : 2]] as const) {
           curve(s.days, (d) => d.daylightMin, color, lw);
         }
       }
+    } else {
+      // Zero line, then morning and evening parts of the primary place, then totals on top.
+      ctx.strokeStyle = pal.axis;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(p.left, Math.round(Y(0)) + 0.5);
+      ctx.lineTo(p.left + p.width, Math.round(Y(0)) + 0.5);
+      ctx.stroke();
+      if (primary) {
+        const list = changes[0] ?? [];
+        ctx.lineCap = 'round';
+        curve(primary.days, (_, i) => list[i]?.morning ?? null, pal.morning ?? pal.text, 1.75, MORNING_DASH);
+        curve(primary.days, (_, i) => list[i]?.evening ?? null, pal.evening ?? pal.text, 2, EVENING_DASH);
+        ctx.lineCap = 'butt';
+      }
+      series.forEach((s, k) => {
+        if (k > 0 && !showCompare) return;
+        const list = changes[k] ?? [];
+        for (const [color, lw] of [[pal.background, k === 0 ? 5 : 4], [s.color, k === 0 ? 2.5 : 2]] as const) curve(s.days, (_, i) => list[i]?.total ?? null, color, lw);
+      });
     }
 
     // Selected day and current time.
@@ -444,6 +545,16 @@
         ctx.beginPath();
         ctx.moveTo(x, p.top);
         ctx.lineTo(x, p.top + p.height);
+        ctx.stroke();
+      }
+      const changeAt = mode === 'change' ? changes[0]?.[selectedIndex]?.total : undefined;
+      if (changeAt != null) {
+        ctx.fillStyle = pal.marker;
+        ctx.strokeStyle = pal.background;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc((xa + xb) / 2, Y(changeAt), 4.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.stroke();
       }
       if (mode === 'bands' && currentMinutes != null) {
@@ -472,6 +583,8 @@
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
+
+    if (mode === 'change' && primary) drawChangeLegend(ctx, p, pal, primary.color);
     ctx.restore();
 
     // Annotation labels in the top margin, longest form that fits, never overlapping.
@@ -500,7 +613,11 @@
     ctx.fillStyle = pal.text;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    for (let m = Math.ceil(view.y[0] / yStep) * yStep; m <= view.y[1] + 0.01; m += yStep) {
+    for (let m = Math.ceil(view.y[0] / yStep - 1e-9) * yStep; m <= view.y[1] + 0.01; m += yStep) {
+      if (mode === 'change') {
+        ctx.fillText(formatChangeTick(m, yStep), p.left - 6, Y(m));
+        continue;
+      }
       const label = mode === 'bands' ? (m >= 1440 ? formatMinutes(0, hourCycle).replace(/^0?0/, '24') : formatMinutes(m, hourCycle)) : m % 60 === 0 ? `${m / 60} h` : formatDuration(m);
       ctx.fillText(hourCycle === '12' && mode === 'bands' ? label.replace(':00 ', ' ') : label, p.left - 6, Y(m));
     }
@@ -516,6 +633,62 @@
       ctx.fillText(t.label, cx, p.top + p.height + 6);
       lastRight = cx + w / 2;
     }
+  }
+
+  // Morning and evening parts are told apart by line style (place colours use up the hues);
+  // palettes may also give them colours.
+  const MORNING_DASH = [7, 4];
+  const EVENING_DASH = [0.5, 4];
+
+  function drawChangeLegend(ctx: CanvasRenderingContext2D, p: { left: number; top: number }, pal: ChartPalette, totalColor: string) {
+    const items: [string, string, number[], number][] = [
+      [totalColor, 'Total', [], 2.5],
+      [pal.morning ?? pal.text, 'Morning (sunrise)', MORNING_DASH, 1.75],
+      [pal.evening ?? pal.text, 'Evening (sunset)', EVENING_DASH, 2],
+    ];
+    ctx.font = pal.font;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const widths = items.map(([, t]) => ctx.measureText(t).width + 30);
+    const w = widths.reduce((a, b) => a + b, 0) + 8;
+    const x = p.left + 6;
+    const y = p.top + 6;
+    ctx.fillStyle = pal.background;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x, y, w, 18);
+    ctx.globalAlpha = 1;
+    let cx = x + 6;
+    ctx.lineCap = 'round';
+    items.forEach(([color, text, dash, lw], i) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lw;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(cx, y + 9);
+      ctx.lineTo(cx + 20, y + 9);
+      ctx.stroke();
+      ctx.fillStyle = pal.text;
+      ctx.fillText(text, cx + 24, y + 9.5);
+      cx += widths[i];
+    });
+    ctx.setLineDash([]);
+    ctx.lineCap = 'butt';
+  }
+
+  /** Grid step for the change chart, minutes (from a few seconds up). */
+  function changeStep(span: number, px: number): number {
+    const target = span / Math.max(2, px / 32);
+    for (const s of [1 / 12, 1 / 6, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 240, 480]) if (s >= target) return s;
+    return 480;
+  }
+
+  /** "+2 min", "−30 s", "0". */
+  function formatChangeTick(m: number, step: number): string {
+    if (Math.abs(m) < step / 100) return '0';
+    const sign = m > 0 ? '+' : '−';
+    const a = Math.abs(m);
+    if (step < 1) return `${sign}${Math.round(a * 60)} s`;
+    return a >= 60 && a % 60 === 0 ? `${sign}${a / 60} h` : `${sign}${Math.round(a)} min`;
   }
 
   /** Grid step in minutes for a visible span. */
