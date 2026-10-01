@@ -73,7 +73,7 @@
     position: relative;
     margin-top: 14px;
     aspect-ratio: 1;
-    max-height: 440px;
+    max-height: 760px;
     width: 100%;
     background: radial-gradient(circle at 50% 45%, #1d2640 0%, #0e1322 70%);
     outline: 1px solid var(--ink);

@@ -24,9 +24,28 @@
   import Notes from './components/Notes.svelte';
   import Preferences from './components/Preferences.svelte';
   import DesignPicker from './components/DesignPicker.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { daySentence, longDate, nowSentence, zoneName } from './almanac.svelte';
 
   let prefs: Preferences | undefined = $state();
+
+  // Desktop: the rail's share of the two columns, dragged at the column gap.
+  const sizes = panelSizes('almanac');
+  let body: HTMLElement | undefined = $state();
+  let mainCol: HTMLElement | undefined = $state();
+  let startMain = 0;
+  const railShare = $derived(sizes.get('rail'));
+  const COLUMN_GAP = 56;
+
+  function dragColumns(d: number) {
+    if (!body) return;
+    const cs = getComputedStyle(body);
+    const inner = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - COLUMN_GAP;
+    const main = clamp(startMain + d, 460, inner - 260);
+    sizes.set('rail', 1 - main / inner);
+  }
+
   let compare = $state(false);
 
   const theme = $derived(resolvedTheme());
@@ -87,8 +106,8 @@
 
   <TimeBar />
 
-  <main class="body">
-    <div class="col main-col">
+  <main class="body" bind:this={body} style:--rail={railShare != null ? `${railShare}fr` : undefined} style:--main={railShare != null ? `${1 - railShare}fr` : undefined}>
+    <div class="col main-col" bind:this={mainCol}>
       <div class="s-year"><YearFigure /></div>
       <div class="s-day"><DayFigure /></div>
     </div>
@@ -96,6 +115,15 @@
       <div class="s-facts"><FactsTable /></div>
       <div class="s-globe"><GlobeInset bind:compare /></div>
       <div class="s-places"><PlacesTable /></div>
+    </div>
+    <div class="split-cols">
+      <Splitter
+        axis="x"
+        label="Column widths"
+        onstart={() => (startMain = mainCol?.offsetWidth ?? 0)}
+        onmove={dragColumns}
+        onreset={() => sizes.clear('rail')}
+      />
     </div>
   </main>
 
@@ -247,9 +275,19 @@
   /* --- Body --------------------------------------------------------------------- */
   .body {
     display: grid;
-    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    grid-template-columns: minmax(0, var(--main, 8fr)) minmax(0, var(--rail, 4fr));
     gap: 56px;
     padding-top: 36px;
+  }
+  /* The column gap is a drag handle; a hairline rule shows on hover. */
+  .split-cols {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+    width: 16px;
+    margin-left: -36px;
+    --dl-split-color: var(--rule-strong);
+    --dl-split-width: 1px;
   }
   .col {
     display: flex;
@@ -299,6 +337,9 @@
     }
     .col {
       display: contents;
+    }
+    .split-cols {
+      display: none;
     }
     .s-year {
       order: 1;

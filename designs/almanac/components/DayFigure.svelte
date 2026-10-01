@@ -4,6 +4,8 @@
 -->
 <script lang="ts">
   import DayChart from '$core/charts/DayChart.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
   import { orderedPlaces } from '$core/state/views';
@@ -12,6 +14,10 @@
   let chart: DayChart | undefined = $state();
   let zoomed = $state(false);
   const others = $derived(orderedPlaces().length > 1);
+
+  const sizes = panelSizes('almanac');
+  let plate: HTMLDivElement | undefined = $state();
+  let startH = 0;
 </script>
 
 <figure class="fig day-fig">
@@ -27,7 +33,7 @@
     <button type="button" class="reset" onclick={() => chart?.resetZoom()} disabled={!zoomed}>Whole day</button>
   </div>
 
-  <div class="plate">
+  <div class="plate" bind:this={plate} style:--day-h={sizes.get('day') != null ? `${sizes.get('day')}px` : undefined}>
     {#if app.selected}
       <DayChart
         bind:this={chart}
@@ -42,6 +48,15 @@
         onviewchange={(z) => (zoomed = z.x || z.y)}
       />
     {/if}
+  </div>
+  <div class="grip">
+    <Splitter
+      axis="y"
+      label="Chart height"
+      onstart={() => (startH = plate?.offsetHeight ?? 0)}
+      onmove={(d) => sizes.set('day', clamp(startH + d, 200, 900))}
+      onreset={() => sizes.clear('day')}
+    />
   </div>
 
   {#if others}
@@ -97,8 +112,29 @@
     opacity: 0.35;
     cursor: default;
   }
+  /* Drag the rule under the plate to make the chart taller or shorter (not on phones). */
+  .grip {
+    position: relative;
+    height: 14px;
+    margin-bottom: -6px;
+    --dl-split-color: var(--accent);
+    --dl-split-width: 2px;
+  }
+  .grip::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 28px;
+    height: 5px;
+    transform: translate(-50%, -50%);
+    border-top: 1px solid var(--muted);
+    border-bottom: 1px solid var(--muted);
+    background: var(--paper);
+    pointer-events: none;
+  }
   .plate {
-    height: 280px;
+    height: var(--day-h, 280px);
     border-top: 1px solid var(--ink);
     border-bottom: 1px solid var(--rule);
     padding-top: 4px;
@@ -128,6 +164,9 @@
     color: var(--muted);
   }
   @media (max-width: 759px) {
+    .grip {
+      display: none;
+    }
     .plate {
       height: 240px;
       margin-left: calc(-1 * var(--gutter) + 4px);

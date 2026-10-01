@@ -23,6 +23,8 @@
   import TimeControls from '$core/components/TimeControls.svelte';
   import SettingsPanel from '$core/components/SettingsPanel.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { LIGHT_NAMES } from '$core/astro/daylight';
   import { addDays } from '$core/time/timescale';
   import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatShift, formatMinutes } from '$core/time/format';
@@ -37,12 +39,25 @@
   const sun = $derived(sunNow());
   const hc = $derived(settings.hourCycle);
 
+  // Draggable sizes: globe column share, globe and chart heights (px).
+  const sizes = panelSizes('reference');
+  let layout: HTMLDivElement | undefined = $state();
+  let start = 0;
+  const px = (name: string) => (sizes.get(name) != null ? `${sizes.get(name)}px` : undefined);
+  const globeShare = $derived(sizes.get('globeShare'));
+
   function pickDay(dayIndex: number) {
     app.setDate(addDays({ year: app.date.year, month: 1, day: 1 }, dayIndex));
   }
 </script>
 
-<div class="layout" data-theme={theme}>
+<div
+  class="layout"
+  data-theme={theme}
+  bind:this={layout}
+  style:--globe-col={globeShare != null ? `${globeShare}fr` : undefined}
+  style:--info-col={globeShare != null ? `${1 - globeShare}fr` : undefined}
+>
   <header>
     <h1>Daylight</h1>
     <div class="search">
@@ -53,7 +68,7 @@
     <DesignSwitcher />
   </header>
 
-  <section class="globe">
+  <section class="globe" style:height={px('globe')}>
     <Globe
       time={app.time}
       markers={globeMarkers()}
@@ -64,7 +79,28 @@
       onpick={(lat, lon) => app.pickPoint(lat, lon, addMode)}
       onmarker={(id) => app.select(id)}
     />
+    <div class="grip">
+      <Splitter
+        axis="y"
+        label="Globe height"
+        onstart={() => (start = layout?.querySelector('.globe')?.clientHeight ?? 0)}
+        onmove={(d) => sizes.set('globe', clamp(start + d, 240, 1400))}
+        onreset={() => sizes.clear('globe')}
+      />
+    </div>
   </section>
+  <div class="split-cols">
+    <Splitter
+      axis="x"
+      label="Globe and info widths"
+      onstart={() => (start = layout?.querySelector('.globe')?.clientWidth ?? 0)}
+      onmove={(d) => {
+        const total = (layout?.querySelector('.globe')?.clientWidth ?? 0) + (layout?.querySelector('.info')?.clientWidth ?? 0);
+        sizes.set('globeShare', clamp(start + d, 240, total - 240) / total);
+      }}
+      onreset={() => sizes.clear('globeShare')}
+    />
+  </div>
 
   <section class="info">
     <div class="places">
@@ -112,7 +148,7 @@
       <button class="dl-btn" onclick={() => yearChart?.zoomOut()}>−</button>
       <button class="dl-btn" onclick={() => yearChart?.resetZoom()}>Reset</button>
     </div>
-    <div class="chart">
+    <div class="chart" style:height={px('year')}>
       {#if app.selected}
         <YearChart
           bind:this={yearChart}
@@ -131,11 +167,20 @@
         />
       {/if}
     </div>
+    <div class="grip">
+      <Splitter
+        axis="y"
+        label="Year chart height"
+        onstart={() => (start = layout?.querySelector('.year .chart')?.clientHeight ?? 0)}
+        onmove={(d) => sizes.set('year', clamp(start + d, 180, 1200))}
+        onreset={() => sizes.clear('year')}
+      />
+    </div>
   </section>
 
   <section class="day">
     <h3>{formatDate(app.date, 'medium')}</h3>
-    <div class="chart">
+    <div class="chart" style:height={px('day')}>
       {#if app.selected}
         <DayChart
           series={daySeries()}
@@ -147,6 +192,15 @@
           onpicktime={(t) => app.setTime(t)}
         />
       {/if}
+    </div>
+    <div class="grip">
+      <Splitter
+        axis="y"
+        label="Day chart height"
+        onstart={() => (start = layout?.querySelector('.day .chart')?.clientHeight ?? 0)}
+        onmove={(d) => sizes.set('day', clamp(start + d, 160, 1000))}
+        onreset={() => sizes.clear('day')}
+      />
     </div>
   </section>
 
@@ -177,7 +231,7 @@
     gap: 12px;
     padding: 12px;
     box-sizing: border-box;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, var(--globe-col, 1fr)) minmax(0, var(--info-col, 1fr));
     grid-template-areas:
       'header header'
       'globe info'
@@ -208,6 +262,7 @@
     min-width: 220px;
   }
   .globe {
+    position: relative;
     grid-area: globe;
     height: min(60vh, 520px);
     background: #05070f;
@@ -215,6 +270,21 @@
   }
   .info {
     grid-area: info;
+  }
+  .split-cols {
+    grid-area: info;
+    justify-self: start;
+    width: 12px;
+    margin-left: -12px;
+  }
+  .grip {
+    height: 12px;
+  }
+  .globe .grip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -12px;
   }
   .year {
     grid-area: year;
@@ -295,6 +365,9 @@
     }
     .globe {
       height: 50vh;
+    }
+    .split-cols {
+      display: none;
     }
   }
 </style>

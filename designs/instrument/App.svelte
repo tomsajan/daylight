@@ -1,6 +1,7 @@
 <!--
   Instrument: a dense console of panels around the comparison matrix.
-  ≥1180px: everything on one screen. 760–1179px: two-column scrolling grid.
+  ≥1180px: everything on one screen; the column widths and row heights can be
+  dragged at the gaps (double-click a gap to reset it). 760–1179px: two-column scrolling grid.
   <760px: tabbed views (Globe / Year / Day / Compare) with a compact control strip at the bottom.
 -->
 <script lang="ts">
@@ -22,6 +23,8 @@
   import SettingsDrawer from './SettingsDrawer.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import TimeSheet from './TimeSheet.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import Icon from './Icon.svelte';
   import { ICON } from './icons';
   import { delta, dur, stepDays, stepMinutes, stepMonths } from './lib';
@@ -34,6 +37,31 @@
 
   const summary = $derived(daySummary());
   const hc = $derived(settings.hourCycle);
+
+  // --- Panel sizes (desktop console) -----------------------------------------
+  // Left and right columns and the compare table in px, the year/day split as
+  // the year row's share. Unset ones fall back to the grid's defaults in CSS.
+
+  const sizes = panelSizes('instrument');
+  let grid: HTMLElement | undefined = $state();
+  const box = (sel: string) => grid?.querySelector(sel)?.getBoundingClientRect() ?? new DOMRect();
+  let start = { a: 0, b: 0 };
+
+  const gridVars = $derived.by(() => {
+    const vars: string[] = [];
+    const left = sizes.get('left');
+    const right = sizes.get('right');
+    const top = sizes.get('table');
+    const year = sizes.get('yearShare');
+    if (left != null) vars.push(`--c-left: ${left}px`);
+    if (right != null) vars.push(`--c-right: ${right}px`);
+    if (top != null) vars.push(`--r-table: ${top}px`, '--table-max: none');
+    if (year != null) vars.push(`--r-year: ${year}fr`, `--r-day: ${1 - year}fr`);
+    return vars.join(';');
+  });
+
+  const MIN_MIDDLE = 380;
+  const MIN_ROW = 200;
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'globe', label: 'Globe', icon: ICON.globe },
@@ -175,7 +203,7 @@
     {/each}
   </nav>
 
-  <main class="grid">
+  <main class="grid" bind:this={grid} style={gridVars}>
     <div class="a-globe" class:on={ui.tab === 'globe'}><GlobePanel /></div>
     <div class="a-table" class:on={ui.tab === 'compare'}>
       <Panel title="Compare" sub="Selected date, live sun" flush>
@@ -194,6 +222,46 @@
       </Panel>
     </div>
     <div class="a-day" class:on={ui.tab === 'day'}><DayPanel /></div>
+
+    <div class="split split-left">
+      <Splitter
+        axis="x"
+        label="Globe column width"
+        onstart={() => (start.a = box('.a-globe').width)}
+        onmove={(d) => sizes.set('left', clamp(start.a + d, 220, (grid?.clientWidth ?? 0) - box('.a-sun').width - MIN_MIDDLE))}
+        onreset={() => sizes.clear('left')}
+      />
+    </div>
+    <div class="split split-right">
+      <Splitter
+        axis="x"
+        label="Sun path column width"
+        onstart={() => (start.a = box('.a-sun').width)}
+        onmove={(d) => sizes.set('right', clamp(start.a - d, 220, (grid?.clientWidth ?? 0) - box('.a-globe').width - MIN_MIDDLE))}
+        onreset={() => sizes.clear('right')}
+      />
+    </div>
+    <div class="split split-table">
+      <Splitter
+        axis="y"
+        label="Compare table height"
+        onstart={() => (start.a = box('.a-table').height)}
+        onmove={(d) => sizes.set('table', clamp(start.a + d, 90, (grid?.clientHeight ?? 0) - 2 * MIN_ROW - 24))}
+        onreset={() => sizes.clear('table')}
+      />
+    </div>
+    <div class="split split-rows">
+      <Splitter
+        axis="y"
+        label="Year and day chart heights"
+        onstart={() => (start = { a: box('.a-year').height, b: box('.a-day').height })}
+        onmove={(d) => {
+          const total = start.a + start.b;
+          sizes.set('yearShare', clamp(start.a + d, MIN_ROW, total - MIN_ROW) / total);
+        }}
+        onreset={() => sizes.clear('yearShare')}
+      />
+    </div>
   </main>
 
   <div class="controls-full"><ControlStrip /></div>
@@ -327,7 +395,8 @@
 
   .selstrip,
   .tabs,
-  .controls-compact {
+  .controls-compact,
+  .grid > .split {
     display: none;
   }
   .controls-full,
@@ -339,15 +408,50 @@
   @media (min-width: 1180px) {
     .grid {
       overflow: hidden;
-      grid-template-columns: minmax(280px, 25fr) minmax(0, 52fr) minmax(270px, 23fr);
-      grid-template-rows: auto minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-columns: var(--c-left, minmax(280px, 25fr)) minmax(0, 52fr) var(--c-right, minmax(270px, 23fr));
+      grid-template-rows: var(--r-table, auto) minmax(0, var(--r-year, 1.2fr)) minmax(0, var(--r-day, 1fr));
       grid-template-areas:
         'globe table table'
         'globe year sun'
         'info day sun';
     }
     .a-table {
-      max-height: 42vh;
+      max-height: var(--table-max, 42vh);
+    }
+    /* Drag handles sit over the 6px gaps, laid on the grid lines they move. */
+    .grid > .split {
+      display: block;
+      z-index: 5;
+      --dl-split-color: var(--accent);
+      --dl-split-width: 2px;
+    }
+    .split-left,
+    .split-right {
+      justify-self: start;
+      width: 12px;
+      margin-left: -9px;
+    }
+    .split-left {
+      grid-column: 2;
+      grid-row: 1 / -1;
+    }
+    .split-right {
+      grid-column: 3;
+      grid-row: 2 / -1;
+    }
+    .split-table,
+    .split-rows {
+      align-self: start;
+      height: 12px;
+      margin-top: -9px;
+    }
+    .split-table {
+      grid-column: 2 / -1;
+      grid-row: 2;
+    }
+    .split-rows {
+      grid-column: 1 / 3;
+      grid-row: 3;
     }
   }
 

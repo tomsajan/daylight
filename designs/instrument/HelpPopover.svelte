@@ -28,6 +28,7 @@
     ['Wheel / pinch', 'Zoom (year: dates; Shift + wheel: hours)'],
     ['Drag elsewhere', 'Pan a zoomed chart'],
     ['Double-click', 'Reset chart zoom'],
+    ['Drag a gap', 'Resize the panels (double-click the gap: default size)'],
     ['Enter / Shift+Enter', 'In search: use mode / add'],
   ];
 </script>

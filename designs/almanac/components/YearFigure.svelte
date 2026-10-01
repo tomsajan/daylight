@@ -14,6 +14,8 @@
   import { addDays } from '$core/time/timescale';
   import { formatDelta, formatDuration, formatMinutes } from '$core/time/format';
   import YearChart from '$core/charts/YearChart.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { almanacPalette, almanacYearSeries, dayMonth, inkOf, shiftSentence, yearAnnotations } from '../almanac.svelte';
 
   let chart: YearChart | undefined = $state();
@@ -55,6 +57,10 @@
     app.setDate(addDays({ year, month: 1, day: 1 }, i));
     if (bands) app.setMinutesOfDay(m);
   }
+
+  const sizes = panelSizes('almanac');
+  let plate: HTMLDivElement | undefined = $state();
+  let startH = 0;
 </script>
 
 <figure class="fig year-fig">
@@ -87,7 +93,7 @@
     </div>
   </div>
 
-  <div class="plate">
+  <div class="plate" bind:this={plate} style:--year-h={sizes.get('year') != null ? `${sizes.get('year')}px` : undefined}>
     {#if app.selected}
       <YearChart
         bind:this={chart}
@@ -106,6 +112,15 @@
         onviewchange={(z) => (zoomed = z)}
       />
     {/if}
+  </div>
+  <div class="grip">
+    <Splitter
+      axis="y"
+      label="Chart height"
+      onstart={() => (startH = plate?.offsetHeight ?? 0)}
+      onmove={(d) => sizes.set('year', clamp(startH + d, 240, 1100))}
+      onreset={() => sizes.clear('year')}
+    />
   </div>
 
   {#if readDay}
@@ -258,8 +273,29 @@
     opacity: 0.35;
     cursor: default;
   }
+  /* Drag the rule under the plate to make the chart taller or shorter (not on phones). */
+  .grip {
+    position: relative;
+    height: 14px;
+    margin-bottom: -6px;
+    --dl-split-color: var(--accent);
+    --dl-split-width: 2px;
+  }
+  .grip::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 28px;
+    height: 5px;
+    transform: translate(-50%, -50%);
+    border-top: 1px solid var(--muted);
+    border-bottom: 1px solid var(--muted);
+    background: var(--paper);
+    pointer-events: none;
+  }
   .plate {
-    height: clamp(320px, 52vh, 520px);
+    height: var(--year-h, clamp(320px, 52vh, 520px));
     border-top: 1px solid var(--ink);
     border-bottom: 1px solid var(--rule);
     padding-top: 4px;
@@ -344,6 +380,9 @@
   }
 
   @media (max-width: 759px) {
+    .grip {
+      display: none;
+    }
     .plate {
       height: 360px;
       margin: 0 calc(-1 * var(--gutter) + 4px);

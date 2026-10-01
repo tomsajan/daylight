@@ -6,6 +6,8 @@
   - Phone: compact top search bar and a snapping bottom sheet.
   The globe canvas is made larger than the screen on one side so the Earth
   centres in the area the panels leave free, without shrinking it.
+  On desktop the side panel's width and the chart drawer's height can be
+  dragged; the sizes are remembered.
 -->
 <script lang="ts">
   import { app, MAX_PLACES } from '$core/state/app.svelte';
@@ -27,6 +29,8 @@
   import BottomSheet, { type Snap } from './BottomSheet.svelte';
   import Icon from './Icon.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { OBS_GLOBE } from './palette';
 
   /** Phone top bar height without the safe area. */
@@ -36,7 +40,8 @@
   let vw = $state(window.innerWidth);
   let vh = $state(window.innerHeight);
   const mobile = $derived(vw < 820);
-  const panelW = $derived(vw < 1100 ? 320 : 360);
+  const sizes = panelSizes('observatory');
+  const panelW = $derived(Math.round(clamp(sizes.get('panel') ?? (vw < 1100 ? 320 : 360), 280, Math.min(600, vw * 0.45))));
   const wideCharts = $derived(vw >= 1360);
   const touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
@@ -65,7 +70,13 @@
       ? `left:0;right:0;bottom:0;top:${TOP_BAR - peekHeight}px`
       : `left:0;bottom:0;right:${-(panelW + GAP)}px;top:${-(dockH + GAP)}px;transform:translateY(${drawerOpen ? -Math.round(drawerH / 2) : 0}px)`,
   );
-  const chartHeight = $derived(Math.round(Math.max(170, Math.min(320, vh * 0.3))));
+  const chartHeight = $derived(
+    Math.round(clamp(sizes.get('charts') ?? Math.max(170, Math.min(320, vh * 0.3)), 140, vh - dockH - (wideCharts ? 190 : 230))),
+  );
+
+  // Sizes at the start of a drag; the splitter reports the distance moved since.
+  let startPanel = 0;
+  let startCharts = 0;
 
   function choose(place: Place, add: boolean) {
     if (add) app.addPlace(place);
@@ -149,6 +160,15 @@
       </div>
       <PlaceList {compare} oncompare={(on) => (compare = on)} />
     </aside>
+    <div class="split-panel" style:left="{16 + panelW - 7}px">
+      <Splitter
+        axis="x"
+        label="Side panel width"
+        onstart={() => (startPanel = panelW)}
+        onmove={(d) => sizes.set('panel', clamp(startPanel + d, 280, Math.min(600, vw * 0.45)))}
+        onreset={() => sizes.clear('panel')}
+      />
+    </div>
 
     <div class="top-center">{@render comparePill()}</div>
 
@@ -165,6 +185,15 @@
     </div>
 
     <section class="drawer o-glass" class:drawer--open={drawerOpen} style:bottom="{dockH + GAP + 10}px" bind:offsetHeight={drawerH} inert={!drawerOpen} aria-label="Charts" id="obs-charts">
+      <div class="split-drawer">
+        <Splitter
+          axis="y"
+          label="Chart height"
+          onstart={() => (startCharts = chartHeight)}
+          onmove={(d) => sizes.set('charts', startCharts - d)}
+          onreset={() => sizes.clear('charts')}
+        />
+      </div>
       <ChartDeck layout={wideCharts ? 'side' : 'tabs'} height={chartHeight} />
     </section>
 
@@ -246,7 +275,10 @@
   .obs {
     position: fixed;
     inset: 0;
-    overflow: hidden;
+    /* clip, not hidden: the globe stage overhangs the screen, and a hidden
+       overflow can still be scrolled (focus, scrollIntoView) and shift everything. */
+    overflow: clip;
+    --dl-split-color: var(--gold);
   }
   .stage {
     position: absolute;
@@ -268,6 +300,21 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+  }
+  .split-panel {
+    position: absolute;
+    z-index: 21;
+    top: 40px;
+    bottom: 40px;
+    width: 14px;
+  }
+  .split-drawer {
+    position: absolute;
+    z-index: 1;
+    top: -7px;
+    left: 28px;
+    right: 28px;
+    height: 12px;
   }
   .brand {
     display: flex;

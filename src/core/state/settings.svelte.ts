@@ -1,5 +1,6 @@
 import type { SunriseDefinition } from '../astro/daylight';
 import type { TimeScaleKind } from '../time/timescale';
+import { resetLayout } from './layout.svelte';
 
 /** Year chart: light bands, hours of daylight, or the day-to-day change. */
 export type ChartMode = 'bands' | 'daylength' | 'change';
@@ -75,8 +76,10 @@ function load(): Settings {
 /** Reactive, persisted settings. Mutate fields directly: `settings.hourCycle = '12'`. */
 export const settings: Settings = $state(load());
 
+/** Every setting back to its default, panel sizes included. */
 export function resetSettings(): void {
   Object.assign(settings, structuredClone(DEFAULT_SETTINGS));
+  resetLayout();
 }
 
 $effect.root(() => {

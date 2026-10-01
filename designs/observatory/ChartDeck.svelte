@@ -17,6 +17,8 @@
   import { formatDate } from '$core/time/format';
   import { LIGHT_COLORS, LIGHT_SHORT, OBS_CHART_PALETTE } from './palette';
   import Icon from './Icon.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
 
   interface Props {
     layout: 'side' | 'tabs';
@@ -28,6 +30,12 @@
   let { layout, height, touchScroll = false }: Props = $props();
 
   let tab = $state<'year' | 'day'>('year');
+  let panes: HTMLDivElement | undefined = $state();
+
+  // Side by side: the year chart's share of the width, draggable.
+  const sizes = panelSizes('observatory');
+  const yearShare = $derived(clamp(sizes.get('yearShare') ?? 0.6, 0.3, 0.8));
+  let startShare = 0;
   let yearChart: YearChart | undefined = $state();
   let dayChart: DayChart | undefined = $state();
 
@@ -70,8 +78,8 @@
     </div>
   {/if}
 
-  <div class="panes">
-    <section class="pane pane--year" hidden={!showYear} aria-label="Year chart">
+  <div class="panes" bind:this={panes}>
+    <section class="pane pane--year" hidden={!showYear} aria-label="Year chart" style:flex={layout === 'side' ? yearShare : undefined}>
       <header>
         {#if layout === 'side'}<h3>Year {app.date.year}</h3>{/if}
         <div class="o-seg" role="group" aria-label="Year chart shows">
@@ -110,7 +118,19 @@
       </div>
     </section>
 
-    <section class="pane pane--day" hidden={!showDay} aria-label="Day chart">
+    {#if layout === 'side'}
+      <div class="split">
+        <Splitter
+          axis="x"
+          label="Year and day chart widths"
+          onstart={() => (startShare = yearShare)}
+          onmove={(d) => sizes.set('yearShare', clamp(startShare + d / Math.max(1, (panes?.clientWidth ?? 1) - 18), 0.3, 0.8))}
+          onreset={() => sizes.clear('yearShare')}
+        />
+      </div>
+    {/if}
+
+    <section class="pane pane--day" hidden={!showDay} aria-label="Day chart" style:flex={layout === 'side' ? 1 - yearShare : undefined}>
       <header>
         {#if layout === 'side'}<h3>{formatDate(app.date, 'long')}</h3>{/if}
         <span class="sub">Sun altitude through the day</span>
@@ -188,11 +208,12 @@
     flex-direction: column;
     gap: 8px;
   }
-  .deck--side .pane--year {
-    flex: 3;
+  .deck--side .panes {
+    gap: 0;
   }
-  .deck--side .pane--day {
-    flex: 2;
+  .split {
+    flex: none;
+    width: 18px;
   }
   .pane[hidden] {
     display: none;
