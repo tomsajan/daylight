@@ -1,6 +1,10 @@
-<!-- Settings in a side drawer (desktop) or a full-height sheet (phones), using the core panel restyled. -->
+<!--
+  Settings in a side drawer (desktop) or a full-height sheet (phones), using the core panel restyled.
+  On phones the design switcher lives here too (the top bar has no room for it).
+-->
 <script lang="ts">
   import SettingsPanel from '$core/components/SettingsPanel.svelte';
+  import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import Icon from './Icon.svelte';
   import { ICON } from './icons';
   import { ui } from './ui.svelte';
@@ -13,6 +17,11 @@
     <button type="button" class="btn" onclick={() => (ui.settingsOpen = false)}><Icon d={ICON.close} /> Close</button>
   </header>
   <div class="content">
+    <div class="design">
+      <span class="lbl">Design</span>
+      <DesignSwitcher />
+      <small>Same places, time and settings, another layout.</small>
+    </div>
     <SettingsPanel />
   </div>
 </div>
@@ -61,6 +70,38 @@
     flex: 1;
     overflow-y: auto;
     padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .design {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .design .lbl {
+    color: var(--ink-2);
+  }
+  .design small {
+    flex-basis: 100%;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .design :global(.dl-design select) {
+    height: 40px;
+    min-width: 180px;
+    padding: 0 8px;
+    border-color: var(--rule-strong);
+    border-radius: var(--r);
+    background: var(--panel);
+    font: 500 13px var(--mono);
+  }
+  @media (max-width: 759px) {
+    .design {
+      display: flex;
+    }
   }
 
   /* Restyle the core panel to match the console. */
@@ -118,6 +159,13 @@
     accent-color: var(--accent);
     width: 15px;
     height: 15px;
+  }
+  .content :global(.dl-slider small) {
+    font: 500 11.5px var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .content :global(.dl-slider input) {
+    accent-color: var(--accent);
   }
   .content :global(.dl-reset) {
     font: 600 11px var(--sans);

@@ -10,10 +10,10 @@
   import { app, MAX_PLACES } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
   import { daySummary } from '$core/state/views';
-  import { formatClock, formatMinutes, formatOffset, compassPoint } from '$core/time/format';
+  import { formatClock, formatMinutes, formatOffset, compassPoint, timeZoneName } from '$core/time/format';
   import { civilDateOf, minutesOfDay, wallMidnight } from '$core/time/timescale';
   import { formatCoordinates } from '$core/geo/place';
-  import { deg, delta, dur, durDelta, PHASE_CODE, zoneAbbr } from './lib';
+  import { deg, delta, dur, durDelta, PHASE_CODE } from './lib';
   import { ui } from './ui.svelte';
 
   type SortKey = 'order' | 'name' | 'clock' | 'phase' | 'alt' | 'az' | 'rise' | 'set' | 'len' | 'change' | 'noon' | 'noonAlt';
@@ -46,7 +46,7 @@
         dayShift,
         offset: formatOffset(app.time, scale),
         offsetMin: scale.offsetMinutes(app.time),
-        zone: settings.timeScale === 'local' ? zoneAbbr(app.time, p.tz) : '',
+        zone: settings.timeScale === 'local' ? timeZoneName(app.time, p.tz) : '',
         nowPct: nowMin >= 0 && nowMin <= 1440 ? (nowMin / 1440) * 100 : null,
         vsSelected: selLen != null && p.id !== sel?.id ? s.day.daylightMin - selLen : null,
       };

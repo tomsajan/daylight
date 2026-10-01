@@ -1,24 +1,25 @@
 <!--
   Simulation and date/time controls.
-  Full: one dense row (wraps on narrower screens).
-  Compact (phones): scrubber + day stepping + play/reverse/now; the date/time
-  readout opens a sheet with everything else.
+  Full: speed (− / play / + with the speed slider below), date stepping, and
+  time of day with the light-phase scrubber; wraps on narrower screens.
+  Compact (phones): scrubber + day stepping + play/now; the date/time readout
+  opens a sheet with everything else, including speed and direction.
 -->
 <script lang="ts">
-  import { app, SPEEDS } from '$core/state/app.svelte';
+  import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
   import { currentMinutes } from '$core/state/views';
   import { dateKey } from '$core/time/timescale';
   import { formatClock, formatDate } from '$core/time/format';
   import Scrubber from './Scrubber.svelte';
+  import SpeedPanel from './SpeedPanel.svelte';
   import Icon from './Icon.svelte';
   import { ICON } from './icons';
-  import { setSpeedIndex, simState, speedIndex, SPEED_SHORT, stepDays, stepMonths } from './lib';
+  import { rateLabel, simState, stepDays, stepMonths } from './lib';
   import { ui } from './ui.svelte';
 
   let { compact = false }: { compact?: boolean } = $props();
 
-  const reverse = $derived(app.speed < 0);
   const sim = $derived(simState());
   const minutes = $derived(currentMinutes());
   const timeValue = $derived(
@@ -46,30 +47,6 @@
   ];
 </script>
 
-{#snippet playButtons()}
-  <button
-    type="button"
-    class="btn dir"
-    aria-pressed={reverse}
-    onclick={() => app.setSpeed(-app.speed)}
-    title={reverse ? 'Running backwards. Click to run forwards (R)' : 'Running forwards. Click to run backwards (R)'}
-    aria-label="Run backwards"
-  >
-    <Icon d={reverse ? ICON.backward : ICON.forward} />
-  </button>
-  <button
-    type="button"
-    class="btn play"
-    class:playing={app.playing}
-    onclick={() => app.toggle()}
-    aria-label={app.playing ? 'Pause' : 'Play'}
-    title={app.playing ? 'Pause (Space)' : 'Play (Space)'}
-  >
-    <Icon d={app.playing ? ICON.pause : ICON.play} />
-    {#if !compact}<span>{app.playing ? 'Pause' : 'Play'}</span>{/if}
-  </button>
-{/snippet}
-
 {#snippet nowButton()}
   <button type="button" class="btn now" class:on={app.live} onclick={() => app.goLive()} title="Jump to the real current time (N)">
     <span class="led" data-state={app.live ? 'live' : 'off'}></span>Now
@@ -84,34 +61,31 @@
       <button type="button" class="readout" onclick={() => (ui.timeSheetOpen = true)} aria-label="Change date, time and speed">
         <span class="num big">{formatDate(app.date, 'short')} {formatClock(app.time, app.scale, settings.hourCycle)}</span>
         <span class="num small">
-          <span class="led" data-state={sim}></span>{sim === 'live' ? 'LIVE' : sim === 'hold' ? 'PAUSED' : `${reverse ? '−' : '+'}${SPEEDS[speedIndex()].label}`}
+          <span class="led" data-state={sim}></span>{sim === 'live' ? 'LIVE' : sim === 'hold' ? 'PAUSED' : rateLabel()}
           <span class="edit">Edit</span>
         </span>
       </button>
       <button type="button" class="btn step" onclick={() => stepDays(1)} aria-label="Next day">+1D</button>
-      {@render playButtons()}
+      <button
+        type="button"
+        class="btn play"
+        class:playing={app.playing}
+        onclick={() => app.toggle()}
+        aria-label={app.playing ? 'Pause' : 'Play'}
+        title={app.playing ? 'Pause' : 'Play'}
+      >
+        <Icon d={app.playing ? ICON.pause : ICON.play} />
+      </button>
       {@render nowButton()}
     </div>
   </div>
 {:else}
   <div class="strip full">
-    <div class="group">
-      <span class="lbl">Sim</span>
-      {@render playButtons()}
-      <div class="seg" role="radiogroup" aria-label="Simulation speed">
-        {#each SPEEDS as s, i (s.value)}
-          <button
-            type="button"
-            class="btn sp num"
-            role="radio"
-            aria-checked={i === speedIndex()}
-            class:on={i === speedIndex()}
-            onclick={() => setSpeedIndex(i)}
-            title="{s.label} of simulated time per second">{SPEED_SHORT[i]}</button
-          >
-        {/each}
+    <div class="group speed">
+      <span class="lbl" title="Simulation speed and direction (− / + keys, R reverses)">Speed</span>
+      <div class="speed-ctl">
+        <SpeedPanel>{@render nowButton()}</SpeedPanel>
       </div>
-      {@render nowButton()}
     </div>
 
     <div class="group">
@@ -126,7 +100,7 @@
     </div>
 
     <div class="group grow">
-      <span class="lbl">Time</span>
+      <span class="lbl">Time of day</span>
       <input class="field" type="time" value={timeValue} onchange={onTime} aria-label="Time of day" />
       <div class="scrubber"><Scrubber /></div>
     </div>
@@ -162,20 +136,14 @@
     min-width: 0;
     padding: 0 7px;
   }
-  .sp {
-    min-width: 0;
-    padding: 0 6px;
-    font: 500 11px var(--mono);
-    letter-spacing: 0;
-    text-transform: none;
+  .speed-ctl {
+    width: 330px;
+    padding-top: 2px;
   }
   .seg .btn.num {
     font: 500 11px var(--mono);
     letter-spacing: 0;
     padding: 0 6px;
-  }
-  .play {
-    min-width: 76px;
   }
   .play.playing {
     color: var(--ink);

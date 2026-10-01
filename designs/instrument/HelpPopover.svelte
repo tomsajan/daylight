@@ -10,8 +10,8 @@
     [['Shift', '←→'], 'Previous / next week'],
     [['↓', '↑'], 'Previous / next month'],
     [[',', '.'], 'Time of day −/+ 15 min (Shift: 1 h)'],
-    [['R'], 'Reverse direction'],
-    [['−', '+'], 'Slower / faster'],
+    [['−', '+'], 'Slower / faster (− past pause runs backwards)'],
+    [['R'], 'Reverse direction, same rate'],
     [['N'], 'Now (real time)'],
     [['1', '…', '6'], 'Select place 1–6'],
     [['A'], 'Globe tap: switch Replace / Add'],
@@ -23,8 +23,10 @@
   ];
 
   const GESTURES: [string, string][] = [
-    ['Wheel / pinch', 'Zoom dates (Shift + wheel: hours)'],
-    ['Drag', 'Pan a zoomed chart'],
+    ['Drag the sun', 'Year: date and time together (Shift: one axis). Day: time of day'],
+    ['Drag day line', 'Year: change the date'],
+    ['Wheel / pinch', 'Zoom (year: dates; Shift + wheel: hours)'],
+    ['Drag elsewhere', 'Pan a zoomed chart'],
     ['Double-click', 'Reset chart zoom'],
     ['Enter / Shift+Enter', 'In search: use mode / add'],
   ];

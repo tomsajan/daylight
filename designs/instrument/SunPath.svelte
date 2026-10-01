@@ -12,7 +12,7 @@
   import { settings } from '$core/state/settings.svelte';
   import { selectedDayIndex } from '$core/state/views';
   import { compassPoint, formatMinutes } from '$core/time/format';
-  import { dateKey, dayBounds, minutesOfDay, type CivilDate } from '$core/time/timescale';
+  import { dayBounds, minutesOfDay, type CivilDate } from '$core/time/timescale';
   import { deg } from './lib';
 
   const R = 92;
@@ -20,12 +20,8 @@
   const STEP = 5 * 60_000;
 
   const place = $derived(app.selected);
-  // app.date is a fresh object every frame; key it so the paths only rebuild when the date changes.
-  const dKey = $derived(dateKey(app.date));
-  const date = $derived.by<CivilDate>(() => {
-    const [year, month, day] = dKey.split('-').map(Number);
-    return { year, month, day };
-  });
+  // app.date keeps its identity within a day, so the paths only rebuild when the date changes.
+  const date = $derived(app.date);
   const horizon = $derived(horizonAltitude(app.daylightOptions));
 
   function rad(alt: number): number {
