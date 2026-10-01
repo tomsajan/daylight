@@ -1,9 +1,13 @@
 <!--
   Year chart and day chart with their controls, either side by side (wide
-  drawer) or as tabs (narrow drawer, phone sheet).
+  drawer) or as tabs (narrow drawer, phone sheet). Drag the sun (or the
+  selected-day line) to move through time; solstices, equinoxes and clock
+  changes are marked on the year.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { app } from '$core/state/app.svelte';
+  import { yearAnnotations } from '$core/state/seasons';
   import { settings } from '$core/state/settings.svelte';
   import { currentMinutes, daySeries, selectedDayIndex, yearSeries } from '$core/state/views';
   import YearChart from '$core/charts/YearChart.svelte';
@@ -18,8 +22,10 @@
     layout: 'side' | 'tabs';
     /** Chart canvas height in px. */
     height: number;
+    /** One-finger vertical swipes scroll the page (charts inside a scrolling sheet). */
+    touchScroll?: boolean;
   }
-  let { layout, height }: Props = $props();
+  let { layout, height, touchScroll = false }: Props = $props();
 
   let tab = $state<'year' | 'day'>('year');
   let yearChart: YearChart | undefined = $state();
@@ -40,6 +46,13 @@
         (l === Light.Astronomical && settings.twilight.astronomical),
     ),
   );
+  // Solstices, equinoxes and clock changes; recomputed only when the place, year or clock changes.
+  const annotationKey = $derived(app.selected ? `${app.selected.id}|${app.date.year}|${settings.timeScale}` : '');
+  const annotations = $derived.by(() => {
+    if (!annotationKey) return [];
+    return untrack(() => (app.selected ? yearAnnotations(app.selected) : []));
+  });
+
   // Line colours only matter once there is more than one place.
   const lines = $derived(app.places.length > 1 ? app.places : []);
 
@@ -83,6 +96,8 @@
             twilight={settings.twilight}
             hourCycle={hc}
             palette={OBS_CHART_PALETTE}
+            {annotations}
+            {touchScroll}
             onpick={pickDay}
           />
         {/if}
@@ -93,8 +108,10 @@
       <header>
         {#if layout === 'side'}<h3>{formatDate(app.date, 'long')}</h3>{/if}
         <span class="sub">Sun altitude through the day</span>
-        <div class="zoom">
-          <button type="button" class="o-btn o-btn--sm o-btn--icon" onclick={() => dayChart?.resetZoom()} title="Reset zoom" aria-label="Reset day chart zoom"><Icon name="reset" /></button>
+        <div class="zoom" role="group" aria-label="Zoom hours">
+          <button type="button" class="o-btn o-btn--sm o-btn--icon" onclick={() => dayChart?.zoomOut()} title="Zoom out" aria-label="Zoom out of the day chart"><Icon name="minus" /></button>
+          <button type="button" class="o-btn o-btn--sm o-btn--icon" onclick={() => dayChart?.zoomIn()} title="Zoom in" aria-label="Zoom in on the day chart"><Icon name="plus" /></button>
+          <button type="button" class="o-btn o-btn--sm o-btn--icon" onclick={() => dayChart?.resetZoom()} title="Show the whole day" aria-label="Reset day chart zoom"><Icon name="reset" /></button>
         </div>
       </header>
       <div class="chart" style:height="{height}px">
@@ -107,6 +124,7 @@
             twilight={settings.twilight}
             hourCycle={hc}
             palette={OBS_CHART_PALETTE}
+            {touchScroll}
             onpicktime={(t) => app.setTime(t)}
           />
         {/if}
@@ -125,9 +143,10 @@
     </ul>
     <p class="hint">
       {#if touch}
-        Pinch to zoom, drag to pan, double-tap to reset. Tap a day or a time to jump there.
+        <strong>Drag the sun</strong> to move through time, or the red line to change the day. Tap to jump, pinch to zoom, double-tap to reset.
       {:else}
-        Scroll to zoom dates, Shift+scroll for hours, drag to pan, double-click to reset. Click to jump to a day or time.
+        <strong>Drag the sun</strong> to move through time (hold Shift to keep the date or the hour), or the red line to change the day. Click to
+        jump, scroll to zoom (Shift+scroll: hours), double-click to reset.
       {/if}
     </p>
   </footer>
@@ -233,5 +252,9 @@
     margin: 0;
     font-size: 12px;
     color: var(--ink-3);
+  }
+  .hint strong {
+    font-weight: 500;
+    color: var(--gold);
   }
 </style>

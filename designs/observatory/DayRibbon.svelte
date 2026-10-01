@@ -22,7 +22,6 @@
   let track: HTMLDivElement;
   let dragging = $state(false);
   let focused = $state(false);
-  let resumeAfterDrag = false;
 
   const hc = $derived(settings.hourCycle);
   const minutes = $derived(Math.max(0, Math.min(1439.99, currentMinutes())));
@@ -55,8 +54,7 @@
     e.stopPropagation();
     track.setPointerCapture(e.pointerId);
     dragging = true;
-    resumeAfterDrag = app.playing;
-    if (app.playing) app.pause();
+    app.beginScrub();
     app.setMinutesOfDay(minutesAt(e.clientX));
   }
   function move(e: PointerEvent) {
@@ -65,7 +63,7 @@
   function up() {
     if (!dragging) return;
     dragging = false;
-    if (resumeAfterDrag) app.play();
+    app.endScrub();
   }
 
   function key(e: KeyboardEvent) {

@@ -53,7 +53,7 @@ export function globeMarkers(): GlobeMarker[] {
 }
 
 export function globeOptions(): Partial<GlobeOptions> {
-  return { ...settings.globe };
+  return { ...settings.globe, dayBrightness: settings.globeBrightness.day, nightBrightness: settings.globeBrightness.night };
 }
 
 export function chartPalette(): ChartPalette {

@@ -39,6 +39,7 @@
 <label class="dl-design">
   {#if label}<span class="dl-design__label">{label}</span>{/if}
   <select value={current} onchange={(e) => go((e.target as HTMLSelectElement).value)} aria-label="Design" title="Switch design (keeps your places, time and settings)">
+    {#if !designs.some((d) => d.slug === current)}<option value={current} disabled>Design…</option>{/if}
     {#each designs as d (d.slug)}
       <option value={d.slug}>{d.name}</option>
     {/each}
