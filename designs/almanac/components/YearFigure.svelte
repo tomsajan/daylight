@@ -2,6 +2,8 @@
   Figure 1: the year chart with its mode switch, year stepper, visible zoom
   buttons, a readout of the day under the pointer, a legend and a caption
   that explains how to read the current mode.
+  On touch, a one-finger vertical swipe scrolls the page (touchScroll) unless
+  the hours are zoomed in, when it pans the chart instead.
 -->
 <script lang="ts">
   import { app, MAX_PLACES } from '$core/state/app.svelte';
@@ -82,7 +84,7 @@
     </div>
   </div>
 
-  <div class="plate" class:y-zoomed={zoomed.y}>
+  <div class="plate">
     {#if app.selected}
       <YearChart
         bind:this={chart}
@@ -95,6 +97,7 @@
         hourCycle={hc}
         {palette}
         {annotations}
+        touchScroll={!zoomed.y}
         onpick={pick}
         onhover={(h) => (hover = h)}
         onviewchange={(z) => (zoomed = z)}
@@ -124,7 +127,7 @@
           <li><span class="sw" style="background: {palette.light[level]}"></span><span>{name} <em>{note}</em></span></li>
         {/each}
         <li><span class="sw line dashed"></span><span>Solar noon <em>sun highest</em></span></li>
-        <li><span class="sw line now"></span><span>Selected day <em>dot: time now</em></span></li>
+        <li><span class="sw line now"></span><span>Selected day <em>dot: the sun at the chosen time</em></span></li>
       </ul>
       {#if others.length}
         <ul class="key places" aria-label="Compared places">
@@ -157,7 +160,15 @@
       Hours of daylight on each day of {year}, one line per place{app.places.length < MAX_PLACES ? ' (add places below to compare them)' : ''}. The
       curves cross at the equinoxes, when day and night are close to equal everywhere.
     {/if}
-    <span class="how">Tap a day to read it. Drag to pan; scroll, pinch or use the buttons to zoom; double-tap to see the whole year.</span>
+    <span class="how">
+      {#if bands}
+        Drag the sun to move through the year and through the day at once (hold Shift to keep to one direction); drag the red line to change only the
+        date.
+      {:else}
+        Drag the red line to change the date.
+      {/if}
+      Tap a day to read it. Drag elsewhere to pan; scroll, pinch or use the buttons to zoom; double-tap to see the whole year.
+    </span>
   </figcaption>
 </figure>
 
@@ -311,16 +322,6 @@
     display: block;
     margin-top: 4px;
     color: var(--muted);
-  }
-
-  /* Touch: let vertical swipes scroll the page unless the hours are zoomed (then they pan the chart). */
-  @media (pointer: coarse) {
-    .plate :global(canvas) {
-      touch-action: pan-y !important;
-    }
-    .plate.y-zoomed :global(canvas) {
-      touch-action: none !important;
-    }
   }
 
   @media (max-width: 759px) {

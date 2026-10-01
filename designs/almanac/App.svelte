@@ -12,9 +12,8 @@
   import { app } from '$core/state/app.svelte';
   import { resolvedTheme, settings } from '$core/state/settings.svelte';
   import { daySummary } from '$core/state/views';
-  import { formatClock, formatOffset } from '$core/time/format';
+  import { formatClock, formatOffset, formatSpeed } from '$core/time/format';
   import { formatCoordinates } from '$core/geo/place';
-  import { SPEEDS } from '$core/state/app.svelte';
   import AlmanacSearch from './components/AlmanacSearch.svelte';
   import TimeBar from './components/TimeBar.svelte';
   import YearFigure from './components/YearFigure.svelte';
@@ -24,6 +23,7 @@
   import PlacesTable from './components/PlacesTable.svelte';
   import Notes from './components/Notes.svelte';
   import Preferences from './components/Preferences.svelte';
+  import DesignPicker from './components/DesignPicker.svelte';
   import { daySentence, longDate, nowSentence, zoneName } from './almanac.svelte';
 
   let prefs: Preferences | undefined = $state();
@@ -40,7 +40,7 @@
     app.live
       ? 'Live'
       : app.playing
-        ? `Simulated, ${SPEEDS.find((s) => s.value === Math.abs(app.speed))?.label ?? ''}${app.speed < 0 ? ' backwards' : ''}`
+        ? `Simulated, ${formatSpeed(Math.abs(app.speed))}${app.speed < 0 ? ' backwards' : ''}`
         : 'Paused',
   );
 
@@ -61,6 +61,7 @@
     <div class="find">
       <AlmanacSearch label="Find a place" onselect={(p) => app.replaceSelected(p)} oncompare={(p) => app.addPlace(p)} />
     </div>
+    <div class="design"><DesignPicker /></div>
     <button type="button" class="prefs-btn" onclick={() => prefs?.open()}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h9M15 6h2M3 14h2M8 14h9" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
       Preferences
@@ -105,6 +106,7 @@
       Sun positions follow the NOAA solar calculator; sunrise and sunset agree with published tables to about a minute. Place names from OpenStreetMap.
       <button type="button" class="link" onclick={() => prefs?.open()}>Preferences</button>
     </p>
+    <p class="other">This almanac is one of several designs of the same app. <DesignPicker label="Read it as" /></p>
   </footer>
 
   <Preferences bind:this={prefs} />
@@ -148,6 +150,9 @@
     flex: 1;
     max-width: 440px;
     margin-left: auto;
+  }
+  .design {
+    flex: none;
   }
   .prefs-btn {
     display: inline-flex;
@@ -267,6 +272,15 @@
     padding-top: 16px;
     padding-bottom: 32px;
   }
+  .colophon p.other {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: 0;
+  }
   .colophon p {
     margin: 0;
     padding-top: 12px;
@@ -310,6 +324,9 @@
     .rail :global(.fig-head h2) {
       font-size: 1.65rem;
     }
+    .design :global(.dl-design__label) {
+      display: none;
+    }
   }
 
   @media (max-width: 759px) {
@@ -321,6 +338,10 @@
       order: 3;
       flex-basis: 100%;
       max-width: none;
+    }
+    /* No room on the top line; the colophon and Preferences carry the switcher on phones. */
+    .design {
+      display: none;
     }
     .prefs-btn {
       margin-left: auto;
