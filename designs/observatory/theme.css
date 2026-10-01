@@ -1,0 +1,320 @@
+/*
+ * Observatory: tokens, page base, shared controls and the globe overlay look.
+ * Dark only: the globe against deep space is the whole point of the design.
+ */
+
+:root {
+  --void: #03050c;
+  --navy: #0a1430;
+  --glass: rgb(10 16 34 / 0.58);
+  --glass-strong: rgb(8 13 29 / 0.86);
+  --glass-hover: rgb(255 240 210 / 0.06);
+  --hair: rgb(255 236 200 / 0.1);
+  --hair-strong: rgb(255 236 200 / 0.2);
+  --ink: #ece6d8;
+  --ink-2: #aab0c2;
+  --ink-3: #7c839c;
+  --gold: #f2c46d;
+  --gold-hot: #ffdc94;
+  --gold-deep: #c98b2b;
+  --on-gold: #1c1406;
+  --blur: blur(22px) saturate(150%);
+  --r-panel: 22px;
+  --r-ctl: 12px;
+  --font: 'Jost', 'Futura', 'Avenir Next', system-ui, sans-serif;
+  --shadow: 0 18px 50px rgb(0 0 0 / 0.45);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--void);
+  color: var(--ink);
+  font: 400 15px/1.45 var(--font);
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* --- Glass surface --------------------------------------------------------- */
+
+.o-glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--hair);
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 rgb(255 245 225 / 0.06);
+}
+
+/* --- Buttons ---------------------------------------------------------------- */
+
+.o-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: rgb(255 255 255 / 0.03);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.o-btn:hover:not(:disabled) {
+  background: var(--glass-hover);
+  border-color: var(--hair-strong);
+}
+.o-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.o-btn--icon {
+  width: 40px;
+  padding: 0;
+}
+.o-btn--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+.o-btn--sm {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.o-btn--sm.o-btn--icon {
+  width: 32px;
+  padding: 0;
+}
+.o-btn[aria-pressed='true'],
+.o-btn--on {
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  color: var(--gold-hot);
+}
+.o-btn--sun {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  background: radial-gradient(circle at 35% 30%, var(--gold-hot), var(--gold) 55%, var(--gold-deep));
+  color: var(--on-gold);
+  box-shadow:
+    0 0 0 1px rgb(255 220 150 / 0.4),
+    0 0 26px rgb(242 196 109 / 0.35);
+}
+.o-btn--sun:hover:not(:disabled) {
+  background: radial-gradient(circle at 35% 30%, #fff0c4, var(--gold-hot) 55%, var(--gold));
+}
+
+.o-btn svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.o-btn--sm svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- Inputs ------------------------------------------------------------------ */
+
+.o-input,
+.o-select {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: rgb(255 255 255 / 0.03);
+  color: var(--ink);
+  color-scheme: dark;
+  min-width: 0;
+}
+.o-input:hover,
+.o-select:hover {
+  border-color: var(--hair-strong);
+}
+.o-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aab0c2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+.o-select option {
+  background: #0d1428;
+  color: var(--ink);
+}
+.o-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(0.4);
+  cursor: pointer;
+}
+
+/* --- Segmented choice -------------------------------------------------------- */
+
+.o-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 11px;
+  background: rgb(0 0 0 / 0.28);
+  border: 1px solid var(--hair);
+}
+.o-seg button {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.o-seg button:hover {
+  color: var(--ink);
+}
+.o-seg button[aria-pressed='true'],
+.o-seg button[aria-selected='true'] {
+  background: rgb(255 240 210 / 0.12);
+  color: var(--gold-hot);
+}
+
+/* --- Thin scrollbars for glass panels --------------------------------------- */
+
+.o-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 236 200 / 0.18) transparent;
+}
+
+.o-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- Globe overlay: markers, labels and the subsolar sun --------------------- */
+
+.obs .globe-marker::before {
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #07101f;
+  box-shadow:
+    0 0 0 1.5px rgb(255 250 240 / 0.9),
+    0 0 12px 1px var(--marker-color);
+}
+
+.obs .globe-marker--selected::before {
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  box-shadow:
+    0 0 0 2px #fffaf0,
+    0 0 0 0 color-mix(in srgb, var(--marker-color) 70%, transparent),
+    0 0 20px 4px var(--marker-color);
+  animation: obs-beacon 2.6s ease-out infinite;
+}
+
+/* One slow beacon on the selected place: the only idle motion in the design. */
+@keyframes obs-beacon {
+  0% {
+    box-shadow:
+      0 0 0 2px #fffaf0,
+      0 0 0 0 color-mix(in srgb, var(--marker-color) 70%, transparent),
+      0 0 20px 4px var(--marker-color);
+  }
+  70%,
+  100% {
+    box-shadow:
+      0 0 0 2px #fffaf0,
+      0 0 0 18px color-mix(in srgb, var(--marker-color) 0%, transparent),
+      0 0 20px 4px var(--marker-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .obs .globe-marker--selected::before {
+    animation: none;
+  }
+}
+
+.obs .globe-marker::after {
+  left: -20px;
+  top: -20px;
+  width: 40px;
+  height: 40px;
+}
+
+.obs .globe-marker__label {
+  left: 15px;
+  top: -12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font: 500 12.5px/18px var(--font);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-shadow: none;
+  background: rgb(5 9 22 / 0.62);
+  border: 1px solid color-mix(in srgb, var(--marker-color) 45%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.obs .globe-marker--selected .globe-marker__label {
+  color: #fffaf0;
+  background: rgb(5 9 22 / 0.78);
+  border-color: var(--marker-color);
+}
+
+.obs .globe-sun::before {
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle, #fffbe8 0 26%, #ffd97a 34% 46%, rgb(255 200 90 / 0.25) 52%, rgb(255 200 90 / 0) 70%);
+  box-shadow: 0 0 30px 10px rgb(255 196 90 / 0.4);
+}
