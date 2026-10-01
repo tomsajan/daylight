@@ -53,7 +53,7 @@
   /** Presets in signed order, paused in the middle (tick marks). */
   const presets = [...SPEEDS.map((s) => -s.value).reverse(), 0, ...SPEEDS.map((s) => s.value)];
 
-  const label = $derived(current === 0 ? 'Paused' : `${current > 0 ? '▶' : '◀'} ${formatSpeed(Math.abs(current))}${current < 0 ? ' back' : ''}`);
+  const label = $derived(current === 0 ? 'Paused' : `${current > 0 ? '▶\uFE0E' : '◀\uFE0E'} ${formatSpeed(Math.abs(current))}${current < 0 ? ' back' : ''}`);
   const position = $derived(toPosition(current));
   // Filled part of the track, from the centre to the thumb (percent).
   const at = $derived(((position + 1) / 2) * 100);
@@ -68,7 +68,7 @@
         class="dl-btn dl-btn--primary dl-btn--icon"
         onclick={() => app.toggle()}
         title={app.playing ? 'Pause' : 'Play'}
-        aria-label={app.playing ? 'Pause' : 'Play'}>{app.playing ? '❚❚' : '▶'}</button
+        aria-label={app.playing ? 'Pause' : 'Play'}>{app.playing ? '❚❚' : '▶\uFE0E'}</button
       >
       <button type="button" class="dl-btn dl-btn--icon" onclick={() => app.stepSpeed(1)} disabled={current >= MAX} title="Faster / forwards" aria-label="Faster / forwards">+</button>
     </div>

@@ -116,6 +116,14 @@
         <button type="button" aria-pressed={settings.globe.twilightStyle === 'smooth'} onclick={() => (settings.globe.twilightStyle = 'smooth')}>Smooth</button>
       </div>
     </div>
+    <label class="slider">
+      <span>Day brightness <small>{Math.round(settings.globeBrightness.day * 100)}%</small></span>
+      <input type="range" min="0.5" max="2" step="0.05" bind:value={settings.globeBrightness.day} />
+    </label>
+    <label class="slider">
+      <span>Night brightness <small>{settings.globeBrightness.night === 0 ? 'black' : `${Math.round(settings.globeBrightness.night * 100)}%`}</small></span>
+      <input type="range" min="0" max="0.4" step="0.01" bind:value={settings.globeBrightness.night} />
+    </label>
     {#each GLOBE_TOGGLES as t (t.key)}
       <label class="switch">
         <input type="checkbox" role="switch" bind:checked={settings.globe[t.key]} />
@@ -225,6 +233,20 @@
   .line > span:first-child {
     display: flex;
     flex-direction: column;
+  }
+  .slider {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .slider span {
+    display: flex;
+    justify-content: space-between;
+  }
+  .slider input {
+    width: 100%;
+    margin: 0;
+    accent-color: var(--gold);
   }
   .num {
     display: inline-flex;
