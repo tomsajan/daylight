@@ -3,8 +3,10 @@
   - mode "bands": the day split into night / twilights / daylight (time of day
     on the vertical axis); compared places appear as sunrise/sunset lines.
   - mode "daylength": hours of daylight per day, one curve per place.
+  - `annotations`: labelled marks along the top (see core/state/seasons.ts).
   Zoom: wheel or horizontal pinch = dates, Shift+wheel or vertical pinch = hours,
   drag to pan, double-click/double-tap to reset, click/tap to pick a day.
+  While zoomed, the view follows the selected day when it leaves the view.
 -->
 <script lang="ts" module>
   export interface YearSeries {
@@ -12,6 +14,16 @@
     name: string;
     color: string;
     days: import('../astro/daylight').DayLight[];
+  }
+
+  export interface YearAnnotation {
+    /** Day index in the year. */
+    index: number;
+    label: string;
+    /** Shorter label used when the long one doesn't fit. */
+    short: string;
+    /** season: drawn as dashes in both modes; clock: dotted, bands mode only. */
+    kind: 'season' | 'clock';
   }
 </script>
 
@@ -40,13 +52,19 @@
     showCompare?: boolean;
     /** Midnight at the top (true) or bottom. */
     midnightTop?: boolean;
+    /** Labelled marks along the top edge. */
+    annotations?: YearAnnotation[];
     /** One-finger vertical swipes scroll the page (for charts in scrolling layouts). */
     touchScroll?: boolean;
     onpick?: (dayIndex: number, minutes: number) => void;
     onhover?: (info: { dayIndex: number; minutes: number } | null) => void;
+    onviewchange?: (zoomed: { x: boolean; y: boolean }) => void;
   }
 
   let {
+    annotations = [],
+    touchScroll = false,
+    onviewchange,
     series,
     year,
     mode = 'bands',
@@ -58,7 +76,6 @@
     showNoon = true,
     showCompare = true,
     midnightTop = true,
-    touchScroll = false,
     onpick,
     onhover,
   }: Props = $props();
@@ -74,7 +91,8 @@
   const extent = $derived<Domain>({ x: [0, dayCount], y: [0, 1440] });
   let view = $state<Domain>({ x: [0, 365], y: [0, 1440] });
 
-  const margin = { left: 44, right: 10, top: 10, bottom: 24 };
+  // Extra room at the top for annotation labels, when there are any.
+  const margin = $derived({ left: 44, right: 10, top: annotations.length ? 24 : 10, bottom: 24 });
   const plot = () => ({
     left: margin.left,
     top: margin.top,
@@ -109,7 +127,10 @@
       plot,
       touchScroll: untrack(() => touchScroll),
       yDown: yDown,
-      onChange: (v) => (view = { x: [...v.x], y: [...v.y] }),
+      onChange: (v) => {
+        view = { x: [...v.x], y: [...v.y] };
+        reportZoom();
+      },
       onTap: (x, y) => onpick?.(Math.max(0, Math.min(dayCount - 1, Math.floor(x))), y),
       onHover: (x, y) => {
         hover = { x, y };
@@ -147,12 +168,32 @@
     });
   });
 
+  let lastZoom = '';
+  function reportZoom() {
+    const e = extent;
+    const z = { x: view.x[0] > e.x[0] || view.x[1] < e.x[1], y: view.y[0] > e.y[0] || view.y[1] < e.y[1] };
+    const key = `${z.x}${z.y}`;
+    if (key !== lastZoom) {
+      lastZoom = key;
+      onviewchange?.(z);
+    }
+  }
+
+  // Keep the selected day in sight while zoomed, e.g. while the simulation runs.
+  $effect(() => {
+    const i = selectedIndex;
+    untrack(() => {
+      if (i == null || !zoom || !zoom.zoomed) return;
+      if (i < view.x[0] || i + 1 > view.x[1]) zoom.panTo(i + 0.5);
+    });
+  });
+
   $effect(() => {
     zoom?.setTouchScroll(touchScroll);
   });
 
   $effect(() => {
-    draw(series, mode, view, width, height, selectedIndex, currentMinutes, twilight, hourCycle, palette, hover, showNoon, showCompare, yDown);
+    draw(series, mode, view, width, height, selectedIndex, currentMinutes, twilight, hourCycle, palette, hover, showNoon, showCompare, yDown, annotations);
   });
 
   function draw(
@@ -170,6 +211,7 @@
     showNoon: boolean,
     showCompare: boolean,
     yDown: boolean,
+    annotations: YearAnnotation[],
   ) {
     if (!canvas || !width || !height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -261,6 +303,21 @@
       ctx.stroke();
     }
 
+    // Annotation rules: seasons as fine dashes, clock changes as dots (bands mode only).
+    const marks = annotations.filter((a) => a.kind === 'season' || mode === 'bands');
+    for (const a of marks) {
+      const x = Math.round(X(a.index + 0.5)) + 0.5;
+      ctx.strokeStyle = pal.text;
+      ctx.globalAlpha = a.kind === 'season' ? 0.55 : 0.7;
+      ctx.setLineDash(a.kind === 'season' ? [4, 3] : [1, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, p.top);
+      ctx.lineTo(x, p.top + p.height);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
     // Lines: solar noon, compared places, day length curves.
     const curve = (days: YearSeries['days'], value: (d: YearSeries['days'][number]) => number | null, color: string, lw: number, dash: number[] = []) => {
       ctx.strokeStyle = color;
@@ -350,6 +407,27 @@
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+
+    // Annotation labels in the top margin, longest form that fits, never overlapping.
+    ctx.font = pal.font;
+    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'center';
+    const placed: [number, number][] = [];
+    const sorted = [...marks].sort((a, b) => (a.kind === b.kind ? a.index - b.index : a.kind === 'season' ? -1 : 1));
+    for (const a of sorted) {
+      const cx = X(a.index + 0.5);
+      if (cx < p.left - 1 || cx > p.left + p.width + 1) continue;
+      for (const text of [a.label, a.short]) {
+        const w = ctx.measureText(text).width;
+        const l = Math.max(p.left, Math.min(cx - w / 2, p.left + p.width - w));
+        if (placed.some(([pl, pr]) => l < pr + 6 && l + w > pl - 6)) continue;
+        ctx.fillStyle = pal.text;
+        ctx.textAlign = 'left';
+        ctx.fillText(text, l, p.top - 6);
+        placed.push([l, l + w]);
+        break;
+      }
+    }
 
     // Axes labels.
     ctx.font = pal.font;

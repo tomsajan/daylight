@@ -11,10 +11,10 @@
   import { visibleLevel } from '$core/charts/palette';
   import { addDays } from '$core/time/timescale';
   import { formatDuration, formatMinutes } from '$core/time/format';
-  import AlmanacYearChart from './AlmanacYearChart.svelte';
+  import YearChart from '$core/charts/YearChart.svelte';
   import { almanacPalette, almanacYearSeries, dayMonth, inkOf, yearAnnotations } from '../almanac.svelte';
 
-  let chart: AlmanacYearChart | undefined = $state();
+  let chart: YearChart | undefined = $state();
   let zoomed = $state({ x: false, y: false });
   let hover = $state<{ dayIndex: number; minutes: number } | null>(null);
 
@@ -84,7 +84,7 @@
 
   <div class="plate" class:y-zoomed={zoomed.y}>
     {#if app.selected}
-      <AlmanacYearChart
+      <YearChart
         bind:this={chart}
         {series}
         {year}
