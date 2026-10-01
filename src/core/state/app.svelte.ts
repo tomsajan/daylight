@@ -244,12 +244,28 @@ function cachedYear(place: Place, year: number, scale: TimeScale, opts: Daylight
 
 // --- Simulation clock -------------------------------------------------------
 
+// The time is only advanced once at least a simulated second has passed:
+// nothing shown is finer than a second, and every change re-runs the sun
+// math and redraws the globe and charts. So live and slow speeds update about
+// once a second, while fast simulation (60× and up) still moves every frame.
+const MIN_STEP_MS = 1000;
 let lastFrame = 0;
+let pending = 0;
 function frame(now: number) {
   if (app.playing) {
     const dt = lastFrame ? now - lastFrame : 0;
-    if (app.live) app.time = Date.now();
-    else if (dt > 0 && dt < 1000) app.time = app.time + dt * app.speed;
+    if (app.live) {
+      const t = Date.now();
+      if (Math.floor(t / MIN_STEP_MS) !== Math.floor(app.time / MIN_STEP_MS)) app.time = t;
+    } else if (dt > 0 && dt < 1000) {
+      pending += dt * app.speed;
+      if (Math.abs(pending) >= MIN_STEP_MS) {
+        app.time = app.time + pending;
+        pending = 0;
+      }
+    }
+  } else {
+    pending = 0;
   }
   lastFrame = now;
   requestAnimationFrame(frame);
