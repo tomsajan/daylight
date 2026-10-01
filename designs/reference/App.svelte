@@ -22,6 +22,7 @@
   import PlaceSearch from '$core/components/PlaceSearch.svelte';
   import TimeControls from '$core/components/TimeControls.svelte';
   import SettingsPanel from '$core/components/SettingsPanel.svelte';
+  import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import { LIGHT_NAMES } from '$core/astro/daylight';
   import { addDays } from '$core/time/timescale';
   import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatMinutes } from '$core/time/format';
@@ -49,6 +50,7 @@
     </div>
     <label class="add"><input type="checkbox" bind:checked={addMode} /> Add to compare</label>
     <button class="dl-btn" onclick={() => (settingsOpen = !settingsOpen)}>Settings</button>
+    <DesignSwitcher />
   </header>
 
   <section class="globe">

@@ -242,10 +242,11 @@ function frame(now: number) {
 }
 
 // --- URL state ----------------------------------------------------------------
-// ?p=Prague~Czechia~50.0755~14.4378&p=...&s=1&t=2026-06-21T12:00:00Z
+// ?p=Prague~Czechia~50.0755~14.4378&p=...&s=1&t=2026-06-21T12:00Z&v=3600&run=1
 // Time is only written when not live, so a shared link shows the same moment.
+// v = simulation speed when not 1×; run = 1 when a simulation is playing.
 
-function readUrl(): { places: Place[]; selected: number; time: number | null } {
+function readUrl(): { places: Place[]; selected: number; time: number | null; speed: number; run: boolean } {
   const q = new URLSearchParams(location.search);
   const places: Place[] = [];
   for (const raw of q.getAll('p')) {
@@ -255,16 +256,30 @@ function readUrl(): { places: Place[]; selected: number; time: number | null } {
     if (Number.isFinite(la) && Number.isFinite(lo) && Math.abs(la) <= 90) places.push(makePlace(la, lo, name, detail));
   }
   const t = q.get('t') ? Date.parse(q.get('t')!) : NaN;
-  return { places, selected: Number(q.get('s') ?? 0) || 0, time: Number.isFinite(t) ? t : null };
+  const v = Number(q.get('v'));
+  return {
+    places,
+    selected: Number(q.get('s') ?? 0) || 0,
+    time: Number.isFinite(t) ? t : null,
+    speed: Number.isFinite(v) && v !== 0 ? v : 1,
+    run: q.get('run') === '1',
+  };
 }
 
-function writeUrl() {
+/** The current state as a query string ("?p=…"), e.g. to carry it to another design. */
+export function stateQuery(): string {
   const q = new URLSearchParams();
   for (const p of app.places) q.append('p', [p.name, p.detail, p.lat.toFixed(4), p.lon.toFixed(4)].join('~'));
   const sel = app.places.findIndex((p) => p.id === app.selected?.id);
   if (sel > 0) q.set('s', String(sel));
   if (!app.live) q.set('t', new Date(Math.round(app.time / 60000) * 60000).toISOString().replace(':00.000Z', 'Z'));
-  const url = `${location.pathname}?${q.toString().replace(/%7E/g, '~').replace(/%2C/g, ',').replace(/%3A/g, ':')}${location.hash}`;
+  if (app.speed !== 1) q.set('v', String(Number(app.speed.toPrecision(3))));
+  if (app.playing && !app.live) q.set('run', '1');
+  return `?${q.toString().replace(/%7E/g, '~').replace(/%2C/g, ',').replace(/%3A/g, ':')}`;
+}
+
+function writeUrl() {
+  const url = `${location.pathname}${stateQuery()}${location.hash}`;
   if (url !== `${location.pathname}${location.search}${location.hash}`) history.replaceState(null, '', url);
 }
 
@@ -276,10 +291,11 @@ export async function initApp(): Promise<void> {
   started = true;
 
   const fromUrl = readUrl();
+  app.speed = fromUrl.speed;
   if (fromUrl.time !== null) {
     app.time = fromUrl.time;
     app.live = false;
-    app.playing = false;
+    app.playing = fromUrl.run;
   } else {
     app.playing = true;
   }
@@ -302,6 +318,8 @@ export async function initApp(): Promise<void> {
       void app.selected;
       void app.live;
       void app.time;
+      void app.speed;
+      void app.playing;
       if (!timer) timer = setTimeout(() => ((timer = null), writeUrl()), 1000);
     });
   });
