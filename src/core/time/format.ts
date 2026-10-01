@@ -101,3 +101,22 @@ const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', '
 export function compassPoint(azimuth: number): string {
   return COMPASS[Math.round((((azimuth % 360) + 360) % 360) / 22.5) % 16];
 }
+
+/** Simulation rate (simulated seconds per real second) in friendly units: "12×", "2.5 h/s", "3 days/s". */
+export function formatSpeed(rate: number): string {
+  const units: [number, string, string][] = [
+    [30 * 86400, 'month/s', 'months/s'],
+    [7 * 86400, 'week/s', 'weeks/s'],
+    [86400, 'day/s', 'days/s'],
+    [3600, 'h/s', 'h/s'],
+    [60, 'min/s', 'min/s'],
+  ];
+  for (const [size, one, many] of units) {
+    if (rate >= size * 0.995) {
+      const v = rate / size;
+      const text = v < 9.95 ? String(Math.round(v * 10) / 10) : String(Math.round(v));
+      return `${text} ${text === '1' ? one : many}`;
+    }
+  }
+  return `${rate < 9.95 ? Math.round(rate * 10) / 10 : Math.round(rate)}×`;
+}

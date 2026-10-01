@@ -1,89 +1,142 @@
 <!--
-  One control for direction and speed: a slider with "paused" in the middle,
-  faster forward to the right and faster backward to the left, with −/+
-  buttons that step one notch (so − from 1× forward goes to paused, then to
-  1× backward). Themable via --dl-* custom properties.
+  Direction and speed in one control.
+  - Buttons (grouped so switching is a short move): − / play-pause / +.
+    − and + jump between the preset speeds, passing through "paused":
+    … 10× back, 1× back, paused, 1×, 10× …
+  - Slider below: continuous and logarithmic, paused in the middle, forward to
+    the right, backward to the left, for picking any speed precisely.
+  Extra controls (e.g. a "Now" button) can be passed as children and sit
+  next to the buttons. Themable via --dl-* custom properties.
 -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { app, SPEEDS } from '../state/app.svelte';
+  import { formatSpeed } from '../time/format';
 
   interface Props {
-    /** Show the text readout ("▶ 1 day/s"). */
+    /** Show the text readout ("▶ 2.5 h/s"). */
     showLabel?: boolean;
+    children?: Snippet;
   }
-  let { showLabel = true }: Props = $props();
+  let { showLabel = true, children }: Props = $props();
 
-  const max = SPEEDS.length;
+  const MAX = SPEEDS[SPEEDS.length - 1].value;
+  const LOG_MAX = Math.log(MAX);
+  /** Half-width of the "paused" zone around the centre of the slider. */
+  const DEAD = 0.04;
 
-  /** Slider position: 0 = paused, ±k = SPEEDS[k-1] forward/backward. */
-  const position = $derived.by(() => {
-    if (!app.playing) return 0;
-    const i = SPEEDS.findIndex((s) => s.value === Math.abs(app.speed));
-    return Math.sign(app.speed) * ((i < 0 ? 0 : i) + 1);
-  });
+  /** Signed speed currently in effect; 0 when paused. */
+  const current = $derived(app.playing ? app.speed : 0);
 
-  const label = $derived.by(() => {
-    if (position === 0) return 'Paused';
-    const s = SPEEDS[Math.abs(position) - 1].label;
-    return position > 0 ? `▶ ${s}` : `◀ ${s} back`;
-  });
+  // Slider position in [-1, 1]: |p| ≤ DEAD is paused, beyond it log(speed) maps linearly.
+  function toPosition(speed: number): number {
+    if (speed === 0) return 0;
+    const f = Math.log(Math.min(MAX, Math.max(1, Math.abs(speed)))) / LOG_MAX;
+    return Math.sign(speed) * (DEAD + f * (1 - DEAD));
+  }
 
-  function setPosition(pos: number) {
-    const p = Math.max(-max, Math.min(max, Math.round(pos)));
-    if (p === 0) {
+  function fromPosition(p: number): number {
+    if (Math.abs(p) <= DEAD) return 0;
+    const f = (Math.abs(p) - DEAD) / (1 - DEAD);
+    return Math.sign(p) * Math.exp(f * LOG_MAX);
+  }
+
+  function apply(speed: number) {
+    if (speed === 0) {
       app.pause();
       return;
     }
-    app.setSpeed(Math.sign(p) * SPEEDS[Math.abs(p) - 1].value);
+    app.setSpeed(speed);
     app.play();
   }
 
-  // Percent of the track the centre mark sits at, for the filled part.
-  const fill = $derived.by(() => {
-    const mid = 50;
-    const at = ((position + max) / (2 * max)) * 100;
-    return { from: Math.min(mid, at), to: Math.max(mid, at) };
-  });
+  /** Presets in signed order, paused in the middle. */
+  const presets = [...SPEEDS.map((s) => -s.value).reverse(), 0, ...SPEEDS.map((s) => s.value)];
+
+  function step(dir: 1 | -1) {
+    const s = current;
+    const next = dir > 0 ? presets.find((v) => v > s + 1e-9) : [...presets].reverse().find((v) => v < s - 1e-9);
+    if (next !== undefined) apply(next);
+  }
+
+  const label = $derived(current === 0 ? 'Paused' : `${current > 0 ? '▶' : '◀'} ${formatSpeed(Math.abs(current))}${current < 0 ? ' back' : ''}`);
+  const position = $derived(toPosition(current));
+  // Filled part of the track, from the centre to the thumb (percent).
+  const at = $derived(((position + 1) / 2) * 100);
 </script>
 
 <div class="dl-speed">
-  <button type="button" class="dl-btn dl-btn--icon" onclick={() => setPosition(position - 1)} disabled={position <= -max} aria-label="Slower / backwards">−</button>
-  <div class="dl-speed__track" style="--from: {fill.from}%; --to: {fill.to}%">
+  <div class="dl-speed__row">
+    <div class="dl-speed__buttons" role="group" aria-label="Speed">
+      <button type="button" class="dl-btn dl-btn--icon" onclick={() => step(-1)} disabled={current <= -MAX} title="Slower / backwards" aria-label="Slower / backwards">−</button>
+      <button
+        type="button"
+        class="dl-btn dl-btn--primary dl-btn--icon"
+        onclick={() => app.toggle()}
+        title={app.playing ? 'Pause' : 'Play'}
+        aria-label={app.playing ? 'Pause' : 'Play'}>{app.playing ? '❚❚' : '▶'}</button
+      >
+      <button type="button" class="dl-btn dl-btn--icon" onclick={() => step(1)} disabled={current >= MAX} title="Faster / forwards" aria-label="Faster / forwards">+</button>
+    </div>
+    {#if showLabel}<span class="dl-speed__label" aria-live="polite">{label}</span>{/if}
+    {@render children?.()}
+  </div>
+  <div class="dl-speed__track" style="--from: {Math.min(50, at)}%; --to: {Math.max(50, at)}%">
     <input
       type="range"
-      min={-max}
-      max={max}
-      step="1"
+      min="-1"
+      max="1"
+      step="0.001"
       value={position}
-      oninput={(e) => setPosition(+(e.target as HTMLInputElement).value)}
+      oninput={(e) => apply(fromPosition(+(e.target as HTMLInputElement).value))}
       aria-label="Simulation speed and direction"
       aria-valuetext={label}
     />
-    <span class="dl-speed__centre" aria-hidden="true"></span>
+    <span class="dl-speed__ticks" aria-hidden="true">
+      {#each presets as v (v)}
+        <span style="left: {((toPosition(v) + 1) / 2) * 100}%" class:centre={v === 0}></span>
+      {/each}
+    </span>
   </div>
-  <button type="button" class="dl-btn dl-btn--icon" onclick={() => setPosition(position + 1)} disabled={position >= max} aria-label="Faster / forwards">+</button>
-  {#if showLabel}<span class="dl-speed__label">{label}</span>{/if}
 </div>
 
 <style>
   .dl-speed {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    gap: 4px;
     min-width: 0;
+  }
+  .dl-speed__row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dl-speed__buttons {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .dl-speed__label {
+    flex: 1;
+    min-width: 8.5em;
+    font-size: 0.9em;
+    font-variant-numeric: tabular-nums;
+    color: var(--dl-muted, #667);
+    white-space: nowrap;
   }
   .dl-speed__track {
     position: relative;
-    flex: 1;
-    min-width: 120px;
     display: flex;
     align-items: center;
+    /* Inset by half a thumb so ticks line up with thumb centres. */
+    --thumb: 18px;
   }
   .dl-speed__track::before {
     content: '';
     position: absolute;
-    left: 0;
-    right: 0;
+    left: calc(var(--thumb) / 2);
+    right: calc(var(--thumb) / 2);
     height: 6px;
     border-radius: 3px;
     background: linear-gradient(
@@ -93,14 +146,29 @@
       var(--dl-border, #d0d5dd) var(--to)
     );
   }
-  .dl-speed__centre {
+  .dl-speed__ticks {
     position: absolute;
-    left: 50%;
-    width: 2px;
-    height: 14px;
-    margin-left: -1px;
-    background: var(--dl-muted, #667);
+    left: calc(var(--thumb) / 2);
+    right: calc(var(--thumb) / 2);
+    top: 50%;
+    height: 0;
     pointer-events: none;
+  }
+  .dl-speed__ticks span {
+    position: absolute;
+    top: 5px;
+    width: 1px;
+    height: 5px;
+    margin-left: -0.5px;
+    background: var(--dl-muted, #667);
+    opacity: 0.6;
+  }
+  .dl-speed__ticks span.centre {
+    top: -8px;
+    height: 16px;
+    width: 2px;
+    margin-left: -1px;
+    opacity: 1;
   }
   input {
     position: relative;
@@ -110,32 +178,28 @@
     background: transparent;
     appearance: none;
     -webkit-appearance: none;
-    height: 28px;
+    height: 30px;
+    cursor: pointer;
   }
   input::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
+    width: var(--thumb);
+    height: var(--thumb);
     border-radius: 50%;
     background: var(--dl-surface, #fff);
     border: 2px solid var(--dl-accent, #3d8bfd);
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+    box-sizing: border-box;
   }
   input::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
+    width: var(--thumb);
+    height: var(--thumb);
     border-radius: 50%;
     background: var(--dl-surface, #fff);
     border: 2px solid var(--dl-accent, #3d8bfd);
+    box-sizing: border-box;
   }
   input::-moz-range-track {
     background: transparent;
-  }
-  .dl-speed__label {
-    min-width: 8.5em;
-    font-size: 0.9em;
-    font-variant-numeric: tabular-nums;
-    color: var(--dl-muted, #667);
-    white-space: nowrap;
   }
 </style>

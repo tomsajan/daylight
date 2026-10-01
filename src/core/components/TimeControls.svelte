@@ -64,22 +64,12 @@
     />
   {/if}
 
-  <div class="dl-time__row">
-    <button
-      type="button"
-      class="dl-btn dl-btn--primary dl-btn--icon"
-      onclick={() => app.toggle()}
-      aria-label={app.playing ? 'Pause' : 'Play'}
-      title={app.playing ? 'Pause' : 'Play'}
-    >
-      {app.playing ? '❚❚' : '▶'}
-    </button>
-    <div class="dl-time__speed"><SpeedControl /></div>
+  <SpeedControl>
     <button type="button" class="dl-btn" class:dl-btn--active={app.live} onclick={() => app.goLive()} title="Jump to the current time">Now</button>
     {#if compact}
       <span class="dl-time__readout">{formatDate(app.date, 'short')} · {formatClock(app.time, app.scale, settings.hourCycle)}</span>
     {/if}
-  </div>
+  </SpeedControl>
 </div>
 
 <style>
@@ -100,10 +90,6 @@
     font-size: 0.85em;
     color: var(--dl-muted, #667);
     font-variant-numeric: tabular-nums;
-  }
-  .dl-time__speed {
-    flex: 1 1 260px;
-    min-width: 0;
   }
   .dl-time__slider {
     width: 100%;
