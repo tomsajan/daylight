@@ -26,6 +26,7 @@
   import SettingsDrawer from './SettingsDrawer.svelte';
   import BottomSheet, { type Snap } from './BottomSheet.svelte';
   import Icon from './Icon.svelte';
+  import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import { OBS_GLOBE } from './palette';
 
   /** Phone top bar height without the safe area. */
@@ -75,12 +76,19 @@
     if (app.selected) globe?.flyTo(app.selected.lat, app.selected.lon, focusDistance);
   }
 
+  // Space plays/pauses; - and + step through the preset speeds (as the − / + buttons do).
   function onKey(e: KeyboardEvent) {
-    if (e.key !== ' ' || e.defaultPrevented || e.repeat) return;
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
-    if (t?.closest('input, select, textarea, button, [role="slider"], [contenteditable="true"]')) return;
-    e.preventDefault();
-    app.toggle();
+    if (e.key === ' ') {
+      if (e.repeat || t?.closest('input, select, textarea, button, [role="slider"], [contenteditable="true"]')) return;
+      e.preventDefault();
+      app.toggle();
+    } else if (e.key === '-' || e.key === '+' || e.key === '=') {
+      if (t?.closest('input:not([type="range"]), select, textarea, [contenteditable="true"]')) return;
+      e.preventDefault();
+      app.stepSpeed(e.key === '-' ? -1 : 1);
+    }
   }
 </script>
 
@@ -129,6 +137,7 @@
       <div class="brand">
         <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M5 16a11 11 0 0 1 22 0" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M1 16h30" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /><circle cx="16" cy="16" r="5" fill="currentColor" /></svg>
         <span>Daylight</span>
+        <div class="design o-design"><DesignSwitcher /></div>
       </div>
       <Search onselect={choose} compare={adding} {canAdd} />
       <div class="facts">
@@ -163,10 +172,12 @@
       <DayRibbon day={summary?.day ?? null} lightNow={summary?.lightNow ?? Light.Night} />
       <div class="dock__row">
         <Transport />
-        <DateControls />
-        <button type="button" class="o-btn charts-btn" class:o-btn--on={drawerOpen} aria-expanded={drawerOpen} aria-controls="obs-charts" onclick={() => (drawerOpen = !drawerOpen)}>
-          <Icon name="chart" /> Charts <Icon name={drawerOpen ? 'down' : 'up'} />
-        </button>
+        <div class="dock__cell"><DateControls /></div>
+        <div class="dock__cell">
+          <button type="button" class="o-btn charts-btn" class:o-btn--on={drawerOpen} aria-expanded={drawerOpen} aria-controls="obs-charts" onclick={() => (drawerOpen = !drawerOpen)}>
+            <Icon name="chart" /> Charts <Icon name={drawerOpen ? 'down' : 'up'} />
+          </button>
+        </div>
       </div>
     </div>
   {:else}
@@ -196,7 +207,7 @@
               <strong>{formatDuration(summary.day.daylightMin)}</strong>
               <span class="peek__delta" class:up={summary.change > 0}>{Math.abs(summary.change) < 1 / 120 ? 'same as yesterday' : `${formatDelta(summary.change)} vs yesterday`}</span>
             </p>
-            <div class="peek__controls"><Transport /></div>
+            <div class="peek__controls"><Transport compact /></div>
           </div>
         {:else}
           <p class="loading">Finding your location…</p>
@@ -204,7 +215,7 @@
       {/snippet}
 
       <section class="block">
-        <ChartDeck layout="tabs" height={vh < 760 ? 190 : 220} />
+        <ChartDeck layout="tabs" height={vh < 760 ? 190 : 220} touchScroll />
       </section>
       <section class="block">
         <h2>Date and time</h2>
@@ -219,8 +230,9 @@
           <Facts {summary} {sun} compact header={false} />
         </section>
       {/if}
-      <section class="block">
+      <section class="block block--end">
         <button type="button" class="o-btn" onclick={() => (settingsOpen = true)}><Icon name="gear" /> Settings</button>
+        <div class="o-design"><DesignSwitcher label="Design" /></div>
       </section>
     </BottomSheet>
   {/if}
@@ -269,9 +281,13 @@
     width: 30px;
     height: 19px;
   }
-  .brand span {
+  .brand > span {
     color: var(--ink);
     font-weight: 400;
+  }
+
+  .brand .design {
+    margin-left: auto;
   }
   .facts {
     padding: 6px 0 4px;
@@ -332,10 +348,19 @@
   .dock__row {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    /* Line up with the speed buttons, not with the slider below them. */
+    align-items: flex-start;
     justify-content: space-between;
     gap: 10px 14px;
     margin-top: 2px;
+  }
+  .dock__row > :global(.transport) {
+    flex: 0 1 340px;
+  }
+  .dock__cell {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
   }
   .charts-btn :global(svg:last-child) {
     width: 16px;
@@ -502,13 +527,7 @@
     color: var(--gold);
   }
   .peek__controls {
-    margin-top: 6px;
-  }
-  .peek__controls :global(.transport) {
-    justify-content: space-between;
-  }
-  .peek__controls :global(.speed) {
-    flex: 1;
+    margin-top: 4px;
   }
 
   .block {
@@ -517,6 +536,13 @@
   }
   .block:last-child {
     border-bottom: 0;
+  }
+  .block--end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
   }
   .block h2 {
     margin: 0 0 10px;
