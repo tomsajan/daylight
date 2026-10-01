@@ -190,7 +190,8 @@
         ctx.beginPath();
         let prev = -Infinity;
         for (const pt of c) {
-          if (pt.m < prev) ctx.moveTo(X(pt.m), Y(pt.alt));
+          // Lift the pen where the clock jumps (DST): backwards, or a skipped hour.
+          if (pt.m < prev || pt.m - prev > 10) ctx.moveTo(X(pt.m), Y(pt.alt));
           else ctx.lineTo(X(pt.m), Y(pt.alt));
           prev = pt.m;
         }
