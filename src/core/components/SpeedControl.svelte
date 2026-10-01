@@ -50,14 +50,8 @@
     app.play();
   }
 
-  /** Presets in signed order, paused in the middle. */
+  /** Presets in signed order, paused in the middle (tick marks). */
   const presets = [...SPEEDS.map((s) => -s.value).reverse(), 0, ...SPEEDS.map((s) => s.value)];
-
-  function step(dir: 1 | -1) {
-    const s = current;
-    const next = dir > 0 ? presets.find((v) => v > s + 1e-9) : [...presets].reverse().find((v) => v < s - 1e-9);
-    if (next !== undefined) apply(next);
-  }
 
   const label = $derived(current === 0 ? 'Paused' : `${current > 0 ? '▶' : '◀'} ${formatSpeed(Math.abs(current))}${current < 0 ? ' back' : ''}`);
   const position = $derived(toPosition(current));
@@ -68,7 +62,7 @@
 <div class="dl-speed">
   <div class="dl-speed__row">
     <div class="dl-speed__buttons" role="group" aria-label="Speed">
-      <button type="button" class="dl-btn dl-btn--icon" onclick={() => step(-1)} disabled={current <= -MAX} title="Slower / backwards" aria-label="Slower / backwards">−</button>
+      <button type="button" class="dl-btn dl-btn--icon" onclick={() => app.stepSpeed(-1)} disabled={current <= -MAX} title="Slower / backwards" aria-label="Slower / backwards">−</button>
       <button
         type="button"
         class="dl-btn dl-btn--primary dl-btn--icon"
@@ -76,7 +70,7 @@
         title={app.playing ? 'Pause' : 'Play'}
         aria-label={app.playing ? 'Pause' : 'Play'}>{app.playing ? '❚❚' : '▶'}</button
       >
-      <button type="button" class="dl-btn dl-btn--icon" onclick={() => step(1)} disabled={current >= MAX} title="Faster / forwards" aria-label="Faster / forwards">+</button>
+      <button type="button" class="dl-btn dl-btn--icon" onclick={() => app.stepSpeed(1)} disabled={current >= MAX} title="Faster / forwards" aria-label="Faster / forwards">+</button>
     </div>
     {#if showLabel}<span class="dl-speed__label" aria-live="polite">{label}</span>{/if}
     {@render children?.()}

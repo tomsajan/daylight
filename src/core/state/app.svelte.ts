@@ -153,6 +153,20 @@ class AppState {
     this.setTime(withMinutesOfDay(this.time, minutes, this.scale));
   }
 
+  /**
+   * Step to the next preset speed up (+1) or down (−1), passing through
+   * "paused" between forward and backward: … 10× back, 1× back, paused, 1×, 10× …
+   */
+  stepSpeed(dir: 1 | -1): void {
+    const presets = [...SPEEDS.map((s) => -s.value).reverse(), 0, ...SPEEDS.map((s) => s.value)];
+    const now = this.playing ? this.speed : 0;
+    const next = dir > 0 ? presets.find((v) => v > now + 1e-9) : [...presets].reverse().find((v) => v < now - 1e-9);
+    if (next === undefined) return;
+    if (next === 0) return this.pause();
+    this.setSpeed(next);
+    this.play();
+  }
+
   #resumeAfterScrub = false;
 
   /** Pause while the user drags time around (e.g. the sun on a chart); see endScrub. */
