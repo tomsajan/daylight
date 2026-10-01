@@ -96,6 +96,16 @@
         <label class="pill"><input type="radio" name="alm-gtw" value="bands" bind:group={settings.globe.twilightStyle} /><span>In steps</span></label>
         <label class="pill"><input type="radio" name="alm-gtw" value="smooth" bind:group={settings.globe.twilightStyle} /><span>Smooth</span></label>
       </div>
+      <label class="range">
+        <span class="lbl">Day brightness</span>
+        <input type="range" min="0.5" max="2" step="0.05" bind:value={settings.globeBrightness.day} />
+        <output>{Math.round(settings.globeBrightness.day * 100)}%</output>
+      </label>
+      <label class="range">
+        <span class="lbl">Night brightness</span>
+        <input type="range" min="0" max="0.4" step="0.01" bind:value={settings.globeBrightness.night} />
+        <output>{settings.globeBrightness.night === 0 ? 'black' : `${Math.round(settings.globeBrightness.night * 100)}%`}</output>
+      </label>
       {#each GLOBE_CHECKS as c (c.key)}
         <label class="check"><input type="checkbox" bind:checked={settings.globe[c.key]} /> {c.label}</label>
       {/each}
@@ -226,6 +236,23 @@
     color: var(--muted);
     margin-right: 4px;
   }
+  .range {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr) 3.2rem;
+    align-items: center;
+    gap: 12px;
+    min-height: 32px;
+  }
+  .range input {
+    width: 100%;
+    margin: 0;
+    accent-color: var(--ink);
+  }
+  .range output {
+    font: 500 0.85rem/1 var(--sans);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
   .num {
     width: 84px;
     height: 36px;
@@ -300,6 +327,16 @@
     }
     .sheet {
       padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+    }
+    /* Label and value on one line, the slider full width below. */
+    .range {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 2px 12px;
+    }
+    .range input {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      height: 32px;
     }
     header {
       padding-top: calc(14px + env(safe-area-inset-top));
