@@ -1,0 +1,77 @@
+/* Default look of the HTML overlay on the globe. Designs may override any of this. */
+
+.globe-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+  --marker-color: #f2a516;
+}
+
+.globe-marker::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--marker-color);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  box-sizing: border-box;
+}
+
+.globe-marker--selected::before {
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--marker-color) 35%, transparent),
+    0 1px 4px rgb(0 0 0 / 0.5);
+}
+
+/* Enlarged invisible hit area for touch. */
+.globe-marker::after {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+}
+
+.globe-marker__label {
+  position: absolute;
+  left: 12px;
+  top: -9px;
+  white-space: nowrap;
+  font: 600 12px/18px system-ui, sans-serif;
+  color: #fff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+  pointer-events: none;
+}
+
+.globe-sun {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.globe-sun::before {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6c8 0 35%, #ffc93c 36% 60%, rgb(255 201 60 / 0) 62%);
+  box-shadow: 0 0 14px 4px rgb(255 200 60 / 0.55);
+}

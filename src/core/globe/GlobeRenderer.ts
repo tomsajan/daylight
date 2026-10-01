@@ -1,0 +1,568 @@
+/**
+ * Three.js Earth with a physically placed day/night terminator and twilight
+ * zones. The Earth stays fixed in the scene and the sun moves around it, so
+ * geographic coordinates map to scene coordinates directly.
+ *
+ * Place markers are HTML elements laid over the canvas (class names
+ * `globe-marker`, `globe-marker--selected`, `globe-sun`), so each design can
+ * style them with plain CSS.
+ */
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { subsolarPoint } from '../astro/sun';
+
+export interface GlobeMarker {
+  id: string;
+  lat: number;
+  lon: number;
+  label: string;
+  color?: string;
+}
+
+export interface GlobeOptions {
+  /** Draw civil/nautical/astronomical twilight as distinct bands, or blend smoothly. */
+  twilightStyle: 'bands' | 'smooth';
+  /** Thin lines along the sunrise and twilight boundaries. */
+  terminatorLines: boolean;
+  nightLights: boolean;
+  /** Equator, tropics and polar circles. */
+  latitudeLines: boolean;
+  /** 30° lat/lon graticule. */
+  graticule: boolean;
+  atmosphere: boolean;
+  /** Sun glint on oceans. */
+  specular: boolean;
+  /** Keep the camera above the subsolar point as time runs. */
+  followSun: boolean;
+  /** Slowly spin when idle. */
+  autoRotate: boolean;
+  /** Labels next to markers. */
+  showLabels: boolean;
+  showSunMarker: boolean;
+  /** CSS colours. */
+  atmosphereColor: string;
+  lineColor: string;
+  terminatorColor: string;
+  background: string | null;
+  /** Folder holding the Earth textures. */
+  textureBase: string;
+}
+
+export const DEFAULT_GLOBE_OPTIONS: GlobeOptions = {
+  twilightStyle: 'bands',
+  terminatorLines: true,
+  nightLights: true,
+  latitudeLines: true,
+  graticule: false,
+  atmosphere: true,
+  specular: true,
+  followSun: false,
+  autoRotate: false,
+  showLabels: true,
+  showSunMarker: true,
+  atmosphereColor: '#5aa8ff',
+  lineColor: '#ffffff',
+  terminatorColor: '#ffcc66',
+  background: null,
+  textureBase: `${import.meta.env.BASE_URL}textures/`,
+};
+
+const TROPIC = 23.4368;
+const FOV = 35;
+
+/** Camera distance (Earth radii) at which the globe just fills the narrower side of the view. */
+export const FIT_DISTANCE = 1 / Math.sin((FOV * Math.PI) / 360);
+
+/** Geographic coordinates to a unit vector (matches SphereGeometry UVs). */
+export function latLonToVector(lat: number, lon: number, radius = 1): THREE.Vector3 {
+  const phi = (lat * Math.PI) / 180;
+  const lam = (lon * Math.PI) / 180;
+  return new THREE.Vector3(Math.cos(phi) * Math.cos(lam), Math.sin(phi), -Math.cos(phi) * Math.sin(lam)).multiplyScalar(radius);
+}
+
+export function vectorToLatLon(v: THREE.Vector3): { lat: number; lon: number } {
+  const n = v.clone().normalize();
+  return { lat: (Math.asin(n.y) * 180) / Math.PI, lon: (Math.atan2(-n.z, n.x) * 180) / Math.PI };
+}
+
+const earthVertex = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vUv = uv;
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const earthFragment = /* glsl */ `
+  uniform sampler2D dayMap;
+  uniform sampler2D nightMap;
+  uniform sampler2D waterMap;
+  uniform vec3 sunDir;
+  uniform float bands;
+  uniform float lines;
+  uniform float lights;
+  uniform float specular;
+  uniform vec3 terminatorColor;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+
+  // Brightness of the ground for a sun altitude (degrees).
+  float lightLevel(float alt) {
+    if (bands > 0.5) {
+      // Distinct steps: day, civil, nautical, astronomical, night.
+      float aa = fwidth(alt) * 0.75;
+      return 0.07
+        + 0.08 * smoothstep(-18.0 - aa, -18.0 + aa, alt)
+        + 0.10 * smoothstep(-12.0 - aa, -12.0 + aa, alt)
+        + 0.20 * smoothstep(-6.0 - aa, -6.0 + aa, alt)
+        + 0.55 * smoothstep(-0.833 - aa, -0.833 + aa, alt);
+    }
+    return 0.07 + 0.93 * smoothstep(-18.0, 0.0, alt) * smoothstep(-18.0, 0.0, alt);
+  }
+
+  float isoLine(float alt, float level) {
+    float w = fwidth(alt) * 1.2;
+    return 1.0 - smoothstep(0.0, w, abs(alt - level));
+  }
+
+  void main() {
+    vec3 n = normalize(vNormal);
+    float s = dot(n, sunDir);
+    float alt = degrees(asin(clamp(s, -1.0, 1.0)));
+
+    vec3 day = texture2D(dayMap, vUv).rgb;
+    vec3 night = texture2D(nightMap, vUv).rgb;
+
+    // Soft lambert falloff in daylight so the globe still reads as round.
+    float sunlit = 0.55 + 0.45 * clamp(s * 2.5, 0.0, 1.0);
+    vec3 color = day * lightLevel(alt) * mix(1.0, sunlit, step(-0.833, alt));
+
+    // City lights fade in as the sky darkens (nautical twilight onward).
+    float dark = 1.0 - smoothstep(-12.0, -4.0, alt);
+    color += night * vec3(1.0, 0.85, 0.6) * dark * lights * 1.4;
+
+    if (specular > 0.5) {
+      float water = texture2D(waterMap, vUv).r;
+      vec3 viewDir = normalize(cameraPosition - vWorld);
+      vec3 refl = reflect(-sunDir, n);
+      float glint = pow(max(dot(refl, viewDir), 0.0), 90.0) * water * step(0.0, s);
+      color += vec3(1.0, 0.95, 0.85) * glint * 0.35;
+    }
+
+    if (lines > 0.5) {
+      float l = isoLine(alt, -0.833) * 0.9
+        + isoLine(alt, -6.0) * 0.45
+        + isoLine(alt, -12.0) * 0.3
+        + isoLine(alt, -18.0) * 0.2;
+      color = mix(color, terminatorColor, clamp(l, 0.0, 1.0));
+    }
+
+    gl_FragColor = vec4(color, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+const atmosphereVertex = /* glsl */ `
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const atmosphereFragment = /* glsl */ `
+  uniform vec3 glowColor;
+  uniform vec3 sunDir;
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vec3 viewDir = normalize(cameraPosition - vWorld);
+    float rim = 1.0 - abs(dot(normalize(vNormal), viewDir));
+    float intensity = pow(rim, 3.0);
+    float lit = 0.35 + 0.65 * smoothstep(-0.3, 0.4, dot(normalize(vNormal), sunDir));
+    gl_FragColor = vec4(glowColor, intensity * lit);
+    #include <colorspace_fragment>
+  }
+`;
+
+export class GlobeRenderer {
+  readonly renderer: THREE.WebGLRenderer;
+  readonly scene = new THREE.Scene();
+  readonly camera: THREE.PerspectiveCamera;
+  readonly controls: OrbitControls;
+
+  /** Called when the user taps the globe surface (not after a drag). */
+  onPick: ((lat: number, lon: number) => void) | null = null;
+  /** Called when a marker is tapped. */
+  onMarkerClick: ((id: string) => void) | null = null;
+
+  private opts: GlobeOptions;
+  private container: HTMLElement;
+  private overlay: HTMLDivElement;
+  private earth: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
+  private atmosphere: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
+  private latLines: THREE.Group;
+  private graticule: THREE.Group;
+  private markers: GlobeMarker[] = [];
+  private selectedId: string | null = null;
+  private markerEls = new Map<string, HTMLDivElement>();
+  private sunEl: HTMLDivElement;
+  private sunDir = new THREE.Vector3(1, 0, 0);
+  private subsolar = { lat: 0, lon: 0 };
+  private dirty = true;
+  private frame = 0;
+  private resizeObserver: ResizeObserver;
+  private flight: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number } | null = null;
+  private disposed = false;
+
+  constructor(container: HTMLElement, options: Partial<GlobeOptions> = {}) {
+    this.container = container;
+    this.opts = { ...DEFAULT_GLOBE_OPTIONS, ...options };
+    if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.domElement.style.display = 'block';
+    this.renderer.domElement.style.touchAction = 'none';
+    container.appendChild(this.renderer.domElement);
+
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'globe-overlay';
+    Object.assign(this.overlay.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden' });
+    container.appendChild(this.overlay);
+
+    this.sunEl = document.createElement('div');
+    this.sunEl.className = 'globe-sun';
+    this.sunEl.title = 'Sun overhead';
+    this.overlay.appendChild(this.sunEl);
+
+    this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.01, 100);
+    this.camera.position.copy(latLonToVector(30, 15, 4));
+
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.08;
+    this.controls.enablePan = false;
+    this.controls.minDistance = 1.15;
+    this.controls.maxDistance = 10;
+    this.controls.zoomSpeed = 0.8;
+    this.controls.autoRotateSpeed = 0.4;
+    this.controls.addEventListener('change', () => {
+      this.updateRotateSpeed();
+      this.dirty = true;
+    });
+    this.controls.addEventListener('start', () => {
+      this.flight = null;
+    });
+
+    const loader = new THREE.TextureLoader();
+    const tex = (name: string, srgb = true) => {
+      const t = loader.load(this.opts.textureBase + name, () => (this.dirty = true));
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      return t;
+    };
+
+    this.earth = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 128, 64),
+      new THREE.ShaderMaterial({
+        vertexShader: earthVertex,
+        fragmentShader: earthFragment,
+        uniforms: {
+          dayMap: { value: tex('earth-blue-marble.jpg') },
+          nightMap: { value: tex('earth-night.jpg') },
+          waterMap: { value: tex('earth-water.png', false) },
+          sunDir: { value: this.sunDir },
+          bands: { value: 1 },
+          lines: { value: 1 },
+          lights: { value: 1 },
+          specular: { value: 1 },
+          terminatorColor: { value: new THREE.Color() },
+        },
+      }),
+    );
+    this.scene.add(this.earth);
+
+    this.atmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1.06, 96, 48),
+      new THREE.ShaderMaterial({
+        vertexShader: atmosphereVertex,
+        fragmentShader: atmosphereFragment,
+        uniforms: { glowColor: { value: new THREE.Color() }, sunDir: { value: this.sunDir } },
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    this.scene.add(this.atmosphere);
+
+    this.latLines = new THREE.Group();
+    for (const lat of [0, TROPIC, -TROPIC, 90 - TROPIC, -(90 - TROPIC)]) this.latLines.add(this.circleOfLatitude(lat, lat === 0 ? 0.55 : 0.35));
+    this.scene.add(this.latLines);
+
+    this.graticule = new THREE.Group();
+    for (let lat = -60; lat <= 60; lat += 30) this.graticule.add(this.circleOfLatitude(lat, 0.15));
+    for (let lon = -180; lon < 180; lon += 30) this.graticule.add(this.meridian(lon, 0.15));
+    this.scene.add(this.graticule);
+
+    this.applyOptions();
+    this.setupPicking();
+
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(container);
+    this.resize();
+    this.setTime(Date.now());
+
+    const loop = () => {
+      if (this.disposed) return;
+      this.frame = requestAnimationFrame(loop);
+      this.tick();
+    };
+    loop();
+  }
+
+  // --- Public API ----------------------------------------------------------
+
+  setTime(utcMs: number): void {
+    this.subsolar = subsolarPoint(utcMs);
+    const prev = this.sunDir.clone();
+    this.sunDir.copy(latLonToVector(this.subsolar.lat, this.subsolar.lon));
+    if (this.opts.followSun && !this.flight) {
+      // Rotate the camera by the same amount the sun moved.
+      const q = new THREE.Quaternion().setFromUnitVectors(prev, this.sunDir);
+      this.camera.position.applyQuaternion(q);
+      this.camera.lookAt(0, 0, 0);
+    }
+    this.dirty = true;
+  }
+
+  setMarkers(markers: GlobeMarker[], selectedId: string | null = this.selectedId): void {
+    this.markers = markers;
+    this.selectedId = selectedId;
+    const keep = new Set(markers.map((m) => m.id));
+    for (const [id, el] of this.markerEls) {
+      if (!keep.has(id)) {
+        el.remove();
+        this.markerEls.delete(id);
+      }
+    }
+    for (const m of markers) {
+      let el = this.markerEls.get(m.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.pointerEvents = 'auto';
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.onMarkerClick?.(m.id);
+        });
+        const label = document.createElement('span');
+        label.className = 'globe-marker__label';
+        el.appendChild(label);
+        this.overlay.appendChild(el);
+        this.markerEls.set(m.id, el);
+      }
+      el.className = `globe-marker${m.id === selectedId ? ' globe-marker--selected' : ''}`;
+      el.style.setProperty('--marker-color', m.color ?? '');
+      const label = el.firstElementChild as HTMLSpanElement;
+      label.textContent = m.label;
+      label.style.display = this.opts.showLabels ? '' : 'none';
+    }
+    this.dirty = true;
+  }
+
+  setOptions(options: Partial<GlobeOptions>): void {
+    this.opts = { ...this.opts, ...options };
+    this.applyOptions();
+  }
+
+  getOptions(): GlobeOptions {
+    return { ...this.opts };
+  }
+
+  /** Smoothly turn the globe to face a point, optionally changing zoom. */
+  flyTo(lat: number, lon: number, distance?: number, durationMs = 1200): void {
+    const d = distance ?? this.camera.position.length();
+    const to = latLonToVector(lat, lon, d);
+    this.flight = { from: this.camera.position.clone(), to, start: performance.now(), duration: durationMs };
+  }
+
+  /** Zoom by a factor (<1 zooms in). */
+  zoom(factor: number): void {
+    const d = THREE.MathUtils.clamp(this.camera.position.length() * factor, this.controls.minDistance, this.controls.maxDistance);
+    this.flight = { from: this.camera.position.clone(), to: this.camera.position.clone().setLength(d), start: performance.now(), duration: 400 };
+  }
+
+  get subsolarPoint(): { lat: number; lon: number } {
+    return { ...this.subsolar };
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    cancelAnimationFrame(this.frame);
+    this.resizeObserver.disconnect();
+    this.controls.dispose();
+    this.scene.traverse((o) => {
+      if (o instanceof THREE.Mesh || o instanceof THREE.Line) {
+        o.geometry.dispose();
+        const mat = o.material as THREE.Material & { uniforms?: Record<string, { value: unknown }> };
+        for (const u of Object.values(mat.uniforms ?? {})) if (u.value instanceof THREE.Texture) u.value.dispose();
+        mat.dispose();
+      }
+    });
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
+    this.overlay.remove();
+  }
+
+  // --- Internals -----------------------------------------------------------
+
+  private applyOptions(): void {
+    const o = this.opts;
+    const u = this.earth.material.uniforms;
+    u.bands.value = o.twilightStyle === 'bands' ? 1 : 0;
+    u.lines.value = o.terminatorLines ? 1 : 0;
+    u.lights.value = o.nightLights ? 1 : 0;
+    u.specular.value = o.specular ? 1 : 0;
+    (u.terminatorColor.value as THREE.Color).set(o.terminatorColor);
+    (this.atmosphere.material.uniforms.glowColor.value as THREE.Color).set(o.atmosphereColor);
+    this.atmosphere.visible = o.atmosphere;
+    this.latLines.visible = o.latitudeLines;
+    this.graticule.visible = o.graticule;
+    for (const group of [this.latLines, this.graticule]) {
+      group.traverse((c) => {
+        if (c instanceof THREE.Line) (c.material as THREE.LineBasicMaterial).color.set(o.lineColor);
+      });
+    }
+    this.controls.autoRotate = o.autoRotate;
+    this.renderer.setClearColor(o.background ?? 0x000000, o.background ? 1 : 0);
+    this.sunEl.style.display = o.showSunMarker ? '' : 'none';
+    for (const el of this.markerEls.values()) {
+      (el.firstElementChild as HTMLElement).style.display = o.showLabels ? '' : 'none';
+    }
+    this.dirty = true;
+  }
+
+  private circleOfLatitude(lat: number, opacity: number): THREE.Line {
+    const pts = [];
+    for (let lon = -180; lon <= 180; lon += 2) pts.push(latLonToVector(lat, lon, 1.001));
+    return this.line(pts, opacity, lat !== 0);
+  }
+
+  private meridian(lon: number, opacity: number): THREE.Line {
+    const pts = [];
+    for (let lat = -90; lat <= 90; lat += 2) pts.push(latLonToVector(lat, lon, 1.001));
+    return this.line(pts, opacity, false);
+  }
+
+  private line(points: THREE.Vector3[], opacity: number, dashed: boolean): THREE.Line {
+    const geom = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = dashed
+      ? new THREE.LineDashedMaterial({ color: this.opts.lineColor, transparent: true, opacity, dashSize: 0.02, gapSize: 0.015 })
+      : new THREE.LineBasicMaterial({ color: this.opts.lineColor, transparent: true, opacity });
+    const line = new THREE.Line(geom, mat);
+    if (dashed) line.computeLineDistances();
+    return line;
+  }
+
+  private setupPicking(): void {
+    const el = this.renderer.domElement;
+    let down: { x: number; y: number; t: number } | null = null;
+    el.addEventListener('pointerdown', (e) => {
+      down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    });
+    el.addEventListener('pointerup', (e) => {
+      if (!down) return;
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+      const quick = performance.now() - down.t < 500;
+      down = null;
+      if (moved > 6 || !quick || !this.onPick) return;
+      const rect = el.getBoundingClientRect();
+      const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(ndc, this.camera);
+      const hit = ray.intersectObject(this.earth)[0];
+      if (hit) {
+        const { lat, lon } = vectorToLatLon(hit.point);
+        this.onPick(lat, lon);
+      }
+    });
+  }
+
+  private updateRotateSpeed(): void {
+    // Slower rotation when zoomed in, so a drag moves the surface under the finger.
+    const d = this.camera.position.length();
+    this.controls.rotateSpeed = THREE.MathUtils.clamp((d - 1) * 0.35, 0.03, 1);
+  }
+
+  private resize(): void {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    if (!w || !h) return;
+    this.renderer.setSize(w, h, false);
+    this.renderer.domElement.style.width = `${w}px`;
+    this.renderer.domElement.style.height = `${h}px`;
+    this.camera.aspect = w / h;
+    // The narrower side always spans FOV degrees, so the globe fits portrait screens too.
+    this.camera.fov = w < h ? 2 * Math.atan(Math.tan((FOV * Math.PI) / 360) * (h / w)) * (180 / Math.PI) : FOV;
+    this.camera.updateProjectionMatrix();
+    this.dirty = true;
+  }
+
+  private tick(): void {
+    if (this.flight) {
+      const f = this.flight;
+      const k = Math.min(1, (performance.now() - f.start) / f.duration);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+      const dir = f.from.clone().normalize().lerp(f.to.clone().normalize(), e).normalize();
+      // Slerp-ish: normalised lerp is fine except for antipodal jumps, nudge those.
+      if (dir.lengthSq() < 1e-6) dir.set(0, 1, 0);
+      const len = THREE.MathUtils.lerp(f.from.length(), f.to.length(), e);
+      this.camera.position.copy(dir.multiplyScalar(len));
+      this.camera.lookAt(0, 0, 0);
+      this.updateRotateSpeed();
+      if (k >= 1) this.flight = null;
+      this.dirty = true;
+    }
+    if (this.controls.update()) this.dirty = true;
+    if (!this.dirty) return;
+    this.dirty = false;
+    this.renderer.render(this.scene, this.camera);
+    this.positionOverlay();
+  }
+
+  private positionOverlay(): void {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    const camDir = this.camera.position.clone().normalize();
+    const camDist = this.camera.position.length();
+    const place = (el: HTMLElement, lat: number, lon: number) => {
+      const p = latLonToVector(lat, lon);
+      // Hidden behind the limb? Visible iff dot(p, cam) > 1/dist.
+      const visible = p.dot(camDir) > 1 / camDist + 0.01;
+      if (!visible) {
+        el.style.visibility = 'hidden';
+        return;
+      }
+      const s = p.project(this.camera);
+      el.style.visibility = 'visible';
+      el.style.transform = `translate(${((s.x + 1) / 2) * w}px, ${((1 - s.y) / 2) * h}px)`;
+    };
+    for (const m of this.markers) {
+      const el = this.markerEls.get(m.id);
+      if (el) place(el, m.lat, m.lon);
+    }
+    if (this.opts.showSunMarker) place(this.sunEl, this.subsolar.lat, this.subsolar.lon);
+  }
+}
