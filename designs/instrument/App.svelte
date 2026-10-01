@@ -1,0 +1,471 @@
+<!--
+  Instrument: a dense console of panels around the comparison matrix.
+  ≥1180px: everything on one screen. 760–1179px: two-column scrolling grid.
+  <760px: tabbed views (Globe / Year / Day / Compare) with a compact control strip at the bottom.
+-->
+<script lang="ts">
+  import { app } from '$core/state/app.svelte';
+  import { settings, resolvedTheme } from '$core/state/settings.svelte';
+  import { daySummary } from '$core/state/views';
+  import { formatMinutes } from '$core/time/format';
+  import Panel from './Panel.svelte';
+  import SearchBox from './SearchBox.svelte';
+  import GlobePanel from './GlobePanel.svelte';
+  import YearPanel from './YearPanel.svelte';
+  import DayPanel from './DayPanel.svelte';
+  import CompareTable from './CompareTable.svelte';
+  import SunPath from './SunPath.svelte';
+  import SelectedReadout from './SelectedReadout.svelte';
+  import ControlStrip from './ControlStrip.svelte';
+  import StatusBar from './StatusBar.svelte';
+  import HelpPopover from './HelpPopover.svelte';
+  import SettingsDrawer from './SettingsDrawer.svelte';
+  import TimeSheet from './TimeSheet.svelte';
+  import Icon from './Icon.svelte';
+  import { ICON } from './icons';
+  import { delta, dur, setSpeedIndex, speedIndex, stepDays, stepMinutes, stepMonths } from './lib';
+  import { ui, type Tab } from './ui.svelte';
+
+  const theme = $derived(resolvedTheme());
+  $effect(() => {
+    document.documentElement.dataset.theme = theme;
+  });
+
+  const summary = $derived(daySummary());
+  const hc = $derived(settings.hourCycle);
+
+  const TABS: { id: Tab; label: string; icon: string }[] = [
+    { id: 'globe', label: 'Globe', icon: ICON.globe },
+    { id: 'year', label: 'Year', icon: ICON.year },
+    { id: 'day', label: 'Day', icon: ICON.day },
+    { id: 'compare', label: 'Compare', icon: ICON.table },
+  ];
+
+  // --- Keyboard ---------------------------------------------------------------
+
+  function isTyping(t: EventTarget | null): boolean {
+    return t instanceof HTMLElement && !!t.closest('input, select, textarea, [contenteditable="true"]');
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (ui.closeAll()) e.preventDefault();
+      return;
+    }
+    if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    let handled = true;
+    switch (k) {
+      case ' ':
+        app.toggle();
+        break;
+      case 'ArrowLeft':
+        stepDays(e.shiftKey ? -7 : -1);
+        break;
+      case 'ArrowRight':
+        stepDays(e.shiftKey ? 7 : 1);
+        break;
+      case 'ArrowUp':
+        stepMonths(1);
+        break;
+      case 'ArrowDown':
+        stepMonths(-1);
+        break;
+      case ',':
+      case '<':
+        stepMinutes(e.shiftKey ? -60 : -15);
+        break;
+      case '.':
+      case '>':
+        stepMinutes(e.shiftKey ? 60 : 15);
+        break;
+      case 'r':
+      case 'R':
+        app.setSpeed(-app.speed);
+        break;
+      case 'n':
+      case 'N':
+        app.goLive();
+        break;
+      case '+':
+      case '=':
+        setSpeedIndex(speedIndex() + 1);
+        break;
+      case '-':
+      case '_':
+        setSpeedIndex(speedIndex() - 1);
+        break;
+      case 'a':
+      case 'A':
+        ui.pickMode = ui.pickMode === 'add' ? 'replace' : 'add';
+        break;
+      case 'm':
+      case 'M':
+        settings.chartMode = settings.chartMode === 'bands' ? 'daylength' : 'bands';
+        break;
+      case '/':
+        ui.focusSearch();
+        break;
+      case 's':
+      case 'S':
+        ui.settingsOpen = !ui.settingsOpen;
+        break;
+      case '?':
+        ui.helpOpen = !ui.helpOpen;
+        break;
+      default:
+        if (/^[1-6]$/.test(k) && app.places[+k - 1]) app.select(app.places[+k - 1].id);
+        else handled = false;
+    }
+    if (handled) e.preventDefault();
+  }
+
+  // Space on a focused button would also "click" it on keyup; the shortcut wins.
+  function onKeyup(e: KeyboardEvent) {
+    if (e.key === ' ' && !isTyping(e.target)) e.preventDefault();
+  }
+</script>
+
+<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
+
+<div class="ins">
+  <header class="top">
+    <div class="brand" aria-label="Daylight Instrument">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M2 12h20" stroke="currentColor" stroke-width="1.5" />
+        <path d="M5 12a7 7 0 0 1 14 0" fill="var(--sun)" />
+      </svg>
+      <span class="word">Daylight</span>
+      <span class="model">Instrument</span>
+    </div>
+    <div class="search-slot"><SearchBox /></div>
+    <div class="top-tools">
+      <button type="button" class="btn help-btn" onclick={() => (ui.helpOpen = !ui.helpOpen)} aria-expanded={ui.helpOpen} title="Keyboard shortcuts (?)">?</button>
+      <button type="button" class="btn settings-btn" onclick={() => (ui.settingsOpen = true)} title="Settings (S)" aria-label="Settings">
+        <Icon d={ICON.gear} size={15} /><span class="txt">Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Phones: the selected place's key numbers stay visible on every tab. -->
+  {#if summary}
+    <div class="selstrip num">
+      <i class="sw" style="--c: {app.colorOf(summary.place)}"></i>
+      <strong>{summary.place.name}</strong>
+      <span><b>↑</b>{summary.day.sunrise ? formatMinutes(summary.day.sunrise.minutes, hc) : '—'}</span>
+      <span><b>↓</b>{summary.day.sunset ? formatMinutes(summary.day.sunset.minutes, hc) : '—'}</span>
+      <span>{dur(summary.day.daylightMin)}</span>
+      <span class="chg" class:up={summary.change > 0.004} class:down={summary.change < -0.004}>{delta(summary.change)}</span>
+    </div>
+  {/if}
+
+  <nav class="tabs" aria-label="Views">
+    {#each TABS as t (t.id)}
+      <button type="button" class:on={ui.tab === t.id} aria-current={ui.tab === t.id ? 'page' : undefined} onclick={() => (ui.tab = t.id)}>
+        <Icon d={t.icon} size={15} />{t.label}{#if t.id === 'compare'}<span class="count num">{app.places.length}</span>{/if}
+      </button>
+    {/each}
+  </nav>
+
+  <main class="grid">
+    <div class="a-globe" class:on={ui.tab === 'globe'}><GlobePanel /></div>
+    <div class="a-table" class:on={ui.tab === 'compare'}>
+      <Panel title="Compare" sub="Selected date, live sun" flush>
+        <CompareTable />
+      </Panel>
+    </div>
+    <div class="a-year" class:on={ui.tab === 'year'}><YearPanel /></div>
+    <div class="a-sun" class:on={ui.tab === 'day'}>
+      <Panel title="Sun path" sub={app.selected?.name}>
+        <SunPath />
+      </Panel>
+    </div>
+    <div class="a-info" class:on={ui.tab === 'globe'}>
+      <Panel title="Selected place">
+        <SelectedReadout />
+      </Panel>
+    </div>
+    <div class="a-day" class:on={ui.tab === 'day'}><DayPanel /></div>
+  </main>
+
+  <div class="controls-full"><ControlStrip /></div>
+  <div class="controls-compact"><ControlStrip compact /></div>
+  <div class="statusbar"><StatusBar /></div>
+
+  {#if ui.helpOpen}<HelpPopover />{/if}
+  {#if ui.settingsOpen}<SettingsDrawer />{/if}
+  {#if ui.timeSheetOpen}<TimeSheet />{/if}
+</div>
+
+<style>
+  .ins {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    background: var(--bezel);
+    color: var(--ink);
+  }
+
+  /* --- Header ---------------------------------------------------------------- */
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 46px;
+    padding: 0 8px 0 12px;
+    padding-top: env(safe-area-inset-top);
+    box-sizing: content-box;
+    background: var(--panel);
+    border-bottom: 1px solid var(--rule);
+    flex: none;
+    position: relative;
+    z-index: 20;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    flex: none;
+  }
+  .brand svg {
+    width: 20px;
+    height: 20px;
+    align-self: center;
+    color: var(--ink);
+  }
+  .word {
+    font: 700 15px var(--sans);
+    letter-spacing: 0.02em;
+  }
+  .model {
+    font: 500 10px var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .search-slot {
+    flex: 0 1 400px;
+    min-width: 0;
+  }
+  .top-tools {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+    flex: none;
+  }
+  .help-btn {
+    font: 600 12px var(--mono);
+  }
+
+  /* --- Main grid ------------------------------------------------------------- */
+  .grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    gap: 6px;
+    padding: 6px;
+  }
+  .grid > div {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  .grid > div > :global(.panel) {
+    flex: 1;
+  }
+  .a-globe {
+    grid-area: globe;
+  }
+  .a-table {
+    grid-area: table;
+  }
+  .a-year {
+    grid-area: year;
+  }
+  .a-sun {
+    grid-area: sun;
+  }
+  .a-info {
+    grid-area: info;
+  }
+  .a-day {
+    grid-area: day;
+  }
+
+  .selstrip,
+  .tabs,
+  .controls-compact {
+    display: none;
+  }
+  .controls-full,
+  .statusbar {
+    flex: none;
+  }
+
+  /* Desktop console: one screen, no page scroll. */
+  @media (min-width: 1180px) {
+    .grid {
+      overflow: hidden;
+      grid-template-columns: minmax(280px, 25fr) minmax(0, 52fr) minmax(270px, 23fr);
+      grid-template-rows: auto minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-areas:
+        'globe table table'
+        'globe year sun'
+        'info day sun';
+    }
+    .a-table {
+      max-height: 42vh;
+    }
+  }
+
+  /* Tablet / small laptop: two columns, page scrolls, controls stay docked. */
+  @media (min-width: 760px) and (max-width: 1179px) {
+    .grid {
+      overflow-y: auto;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: 440px auto 420px 340px;
+      grid-template-areas:
+        'globe sun'
+        'table table'
+        'year year'
+        'day info';
+    }
+  }
+
+  /* Phones: tabbed views. */
+  @media (max-width: 759px) {
+    .top {
+      gap: 8px;
+      height: 48px;
+      padding-left: 10px;
+    }
+    .model,
+    .word,
+    .help-btn,
+    .settings-btn .txt,
+    .statusbar,
+    .controls-full {
+      display: none;
+    }
+    .search-slot {
+      flex: 1;
+    }
+    .settings-btn {
+      width: 36px;
+      height: 34px;
+    }
+
+    .selstrip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 30px;
+      padding: 0 12px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--rule);
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      flex: none;
+    }
+    .selstrip strong {
+      font: 600 13px var(--sans);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 0 1 auto;
+    }
+    .selstrip b {
+      color: var(--sun);
+      margin-right: 1px;
+    }
+    .selstrip .chg {
+      margin-left: auto;
+    }
+    .up {
+      color: var(--led-live);
+    }
+    .down {
+      color: var(--danger);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--panel);
+      border-bottom: 1px solid var(--rule);
+      flex: none;
+    }
+    .tabs button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 40px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: none;
+      font: 600 11px var(--sans);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .tabs button.on {
+      color: var(--ink);
+      border-bottom-color: var(--accent);
+    }
+    .count {
+      font-size: 10px;
+      padding: 0 4px;
+      border: 1px solid var(--rule-strong);
+      border-radius: 2px;
+      letter-spacing: 0;
+    }
+
+    .grid {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 6px;
+    }
+    /* Only the active tab's panels are shown. */
+    .grid > div:not(.on) {
+      display: none;
+    }
+    .a-globe,
+    .a-year,
+    .a-table {
+      flex: 1 0 320px;
+    }
+    .a-day {
+      flex: 1 0 260px;
+    }
+    .a-sun,
+    .a-info {
+      flex: none;
+    }
+    /* Day tab: chart first, then the compass. */
+    .a-day {
+      order: 1;
+    }
+    .a-sun {
+      order: 2;
+    }
+    .a-sun :global(svg) {
+      max-height: 300px;
+    }
+
+    .controls-compact {
+      display: block;
+      flex: none;
+      padding-bottom: env(safe-area-inset-bottom);
+      background: var(--panel);
+    }
+  }
+</style>
