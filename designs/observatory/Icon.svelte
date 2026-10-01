@@ -1,9 +1,6 @@
-<!-- Line icons on a 24px grid. Filled shapes (play, pause) use `fill`. -->
+<!-- Line icons on a 24px grid. -->
 <script lang="ts" module>
   const PATHS = {
-    play: ['M8 5.5v13l10.5-6.5z'],
-    pause: ['M7 5h3.6v14H7zM13.4 5H17v14h-3.6z'],
-    forward: ['M5 6.5 11 12l-6 5.5M12.5 6.5l6 5.5-6 5.5'],
     left: ['m14.5 6-6 6 6 6'],
     right: ['m9.5 6 6 6-6 6'],
     up: ['m6 14.5 6-6 6 6'],
@@ -34,7 +31,6 @@
     size?: number;
   }
   let { name, size }: Props = $props();
-  const filled = $derived(name === 'play' || name === 'pause');
 </script>
 
 <svg
@@ -42,8 +38,8 @@
   width={size}
   height={size}
   aria-hidden="true"
-  fill={filled ? 'currentColor' : 'none'}
-  stroke={filled ? 'none' : 'currentColor'}
+  fill="none"
+  stroke="currentColor"
   stroke-width="1.7"
   stroke-linecap="round"
   stroke-linejoin="round"
