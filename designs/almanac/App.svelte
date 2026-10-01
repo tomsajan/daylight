@@ -279,6 +279,16 @@
     gap: 56px;
     padding-top: 36px;
   }
+  /* Placed explicitly: the handle below is, and explicitly placed items are
+     laid out first, so an auto-placed rail would drop to a second row. */
+  .main-col {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .rail {
+    grid-column: 2;
+    grid-row: 1;
+  }
   /* The column gap is a drag handle; a hairline rule shows on hover. */
   .split-cols {
     grid-column: 2;

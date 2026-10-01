@@ -398,20 +398,30 @@
     background: var(--ph-day);
   }
 
-  /* Wide container (phone landscape, tablet): plot and readouts side by side. */
-  @container (min-width: 460px) {
-    .lay {
-      flex-direction: row;
-      align-items: center;
-    }
+  /* Desktop console: a tall column, so the readouts stay below and the plot
+     takes whatever height the panel has. */
+  @media (min-width: 1180px) {
     svg {
-      flex: 1 1 60%;
-      height: 100%;
       max-height: none;
     }
-    .read {
-      flex: 1 1 40%;
-      grid-template-columns: 1fr;
+  }
+
+  /* Wide container on smaller screens (phone landscape, tablet): plot and readouts side by side. */
+  @media (max-width: 1179px) {
+    @container (min-width: 460px) {
+      .lay {
+        flex-direction: row;
+        align-items: center;
+      }
+      svg {
+        flex: 1 1 60%;
+        height: 100%;
+        max-height: none;
+      }
+      .read {
+        flex: 1 1 40%;
+        grid-template-columns: 1fr;
+      }
     }
   }
 </style>
