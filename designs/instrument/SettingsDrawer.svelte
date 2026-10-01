@@ -160,6 +160,13 @@
     width: 15px;
     height: 15px;
   }
+  .content :global(.dl-slider small) {
+    font: 500 11.5px var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .content :global(.dl-slider input) {
+    accent-color: var(--accent);
+  }
   .content :global(.dl-reset) {
     font: 600 11px var(--sans);
     letter-spacing: 0.06em;
