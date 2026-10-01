@@ -7,6 +7,7 @@
   import { settings, resetSettings } from '$core/state/settings.svelte';
   import { TIME_SCALE_LABELS, type TimeScaleKind } from '$core/time/timescale';
   import Icon from './Icon.svelte';
+  import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
 
   interface Props {
     onclose: () => void;
@@ -48,6 +49,14 @@
     <h2 id="obs-settings-title">Settings</h2>
     <button bind:this={closeBtn} type="button" class="o-btn o-btn--icon o-btn--quiet" onclick={onclose} aria-label="Close settings"><Icon name="close" /></button>
   </header>
+
+  <section>
+    <h3>Design</h3>
+    <div class="line">
+      <span>Another look at the same thing <small>your places, time and settings come along</small></span>
+      <div class="o-design"><DesignSwitcher /></div>
+    </div>
+  </section>
 
   <section>
     <h3>Clock</h3>

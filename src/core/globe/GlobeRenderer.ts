@@ -25,6 +25,10 @@ export interface GlobeOptions {
   /** Thin lines along the sunrise and twilight boundaries. */
   terminatorLines: boolean;
   nightLights: boolean;
+  /** Brightness of the sunlit side, 1 = natural. */
+  dayBrightness: number;
+  /** Brightness of the dark side (before city lights), 0 = black. */
+  nightBrightness: number;
   /** Equator, tropics and polar circles. */
   latitudeLines: boolean;
   /** 30° lat/lon graticule. */
@@ -52,6 +56,8 @@ export const DEFAULT_GLOBE_OPTIONS: GlobeOptions = {
   twilightStyle: 'bands',
   terminatorLines: true,
   nightLights: true,
+  dayBrightness: 1,
+  nightBrightness: 0.06,
   latitudeLines: true,
   graticule: false,
   atmosphere: true,
@@ -107,23 +113,25 @@ const earthFragment = /* glsl */ `
   uniform float lines;
   uniform float lights;
   uniform float specular;
+  uniform float dayLevel;
+  uniform float nightLevel;
   uniform vec3 terminatorColor;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorld;
 
-  // Brightness of the ground for a sun altitude (degrees).
-  float lightLevel(float alt) {
+  // How far from night (0) to day (1) the light is at a sun altitude (degrees).
+  float lightFraction(float alt) {
     if (bands > 0.5) {
-      // Distinct steps: day, civil, nautical, astronomical, night.
+      // Distinct steps: night, astronomical, nautical, civil, day.
       float aa = fwidth(alt) * 0.75;
-      return 0.07
-        + 0.08 * smoothstep(-18.0 - aa, -18.0 + aa, alt)
+      return 0.08 * smoothstep(-18.0 - aa, -18.0 + aa, alt)
         + 0.10 * smoothstep(-12.0 - aa, -12.0 + aa, alt)
-        + 0.20 * smoothstep(-6.0 - aa, -6.0 + aa, alt)
-        + 0.55 * smoothstep(-0.833 - aa, -0.833 + aa, alt);
+        + 0.17 * smoothstep(-6.0 - aa, -6.0 + aa, alt)
+        + 0.65 * smoothstep(-0.833 - aa, -0.833 + aa, alt);
     }
-    return 0.07 + 0.93 * smoothstep(-18.0, 0.0, alt) * smoothstep(-18.0, 0.0, alt);
+    float f = smoothstep(-18.0, 0.0, alt);
+    return f * f;
   }
 
   float isoLine(float alt, float level) {
@@ -139,9 +147,11 @@ const earthFragment = /* glsl */ `
     vec3 day = texture2D(dayMap, vUv).rgb;
     vec3 night = texture2D(nightMap, vUv).rgb;
 
-    // Soft lambert falloff in daylight so the globe still reads as round.
-    float sunlit = 0.55 + 0.45 * clamp(s * 2.5, 0.0, 1.0);
-    vec3 color = day * lightLevel(alt) * mix(1.0, sunlit, step(-0.833, alt));
+    // A gentle lambert falloff in daylight keeps the globe looking round, but
+    // stays well above twilight so day and night never blur together.
+    float sunlit = mix(0.8, 1.0, clamp(s * 2.5, 0.0, 1.0));
+    float level = mix(nightLevel, dayLevel, lightFraction(alt));
+    vec3 color = day * level * mix(1.0, sunlit, step(-0.833, alt));
 
     // City lights fade in as the sky darkens (nautical twilight onward).
     float dark = 1.0 - smoothstep(-12.0, -4.0, alt);
@@ -287,6 +297,8 @@ export class GlobeRenderer {
           bands: { value: 1 },
           lines: { value: 1 },
           lights: { value: 1 },
+          dayLevel: { value: 1 },
+          nightLevel: { value: 0.06 },
           specular: { value: 1 },
           terminatorColor: { value: new THREE.Color() },
         },
@@ -435,6 +447,8 @@ export class GlobeRenderer {
     u.bands.value = o.twilightStyle === 'bands' ? 1 : 0;
     u.lines.value = o.terminatorLines ? 1 : 0;
     u.lights.value = o.nightLights ? 1 : 0;
+    u.dayLevel.value = o.dayBrightness;
+    u.nightLevel.value = o.nightBrightness;
     u.specular.value = o.specular ? 1 : 0;
     (u.terminatorColor.value as THREE.Color).set(o.terminatorColor);
     (this.atmosphere.material.uniforms.glowColor.value as THREE.Color).set(o.atmosphereColor);
