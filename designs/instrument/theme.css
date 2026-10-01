@@ -1,0 +1,290 @@
+/*
+ * Instrument theme: tokens, shared control styles and globe overlay overrides.
+ * The App sets data-theme on <html> from resolvedTheme().
+ */
+
+:root {
+  --bezel: #e3e6ea;
+  --panel: #f9fafb;
+  --panel-2: #f0f2f5;
+  --ink: #11161d;
+  --ink-2: #2f3843;
+  --muted: #5e6876;
+  --faint: #8a94a2;
+  --rule: #cfd5dc;
+  --rule-strong: #aab3bf;
+  --accent: #2b59c3;
+  --accent-ink: #ffffff;
+  --accent-soft: rgb(43 89 195 / 0.11);
+  --cursor: #d6246e;
+  --led-live: #14995a;
+  --led-run: #2b59c3;
+  --led-hold: #c27400;
+  --danger: #c8333a;
+  --screen: #0b1018;
+  --screen-ink: #c9d3e1;
+
+  /* Light phases (mirrors palette.ts). */
+  --ph-night: #1b2233;
+  --ph-astro: #2b3756;
+  --ph-naut: #475d8c;
+  --ph-civil: #8ea3cb;
+  --ph-day: #f7dc93;
+  --sun: #f2a516;
+
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --sans: 'IBM Plex Sans Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --r: 3px;
+
+  /* Core components read these. */
+  --dl-bg: var(--bezel);
+  --dl-fg: var(--ink);
+  --dl-surface: var(--panel);
+  --dl-muted: var(--muted);
+  --dl-border: var(--rule);
+  --dl-accent: var(--accent);
+  --dl-on-accent: var(--accent-ink);
+  --dl-radius: var(--r);
+  --dl-danger: var(--danger);
+  --dl-color-scheme: light;
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bezel: #07090d;
+  --panel: #0e131a;
+  --panel-2: #121922;
+  --ink: #dce3ec;
+  --ink-2: #b6c0cd;
+  --muted: #8592a3;
+  --faint: #5d6979;
+  --rule: #1f2834;
+  --rule-strong: #334152;
+  --accent: #7aa2ff;
+  --accent-ink: #07101f;
+  --accent-soft: rgb(122 162 255 / 0.13);
+  --cursor: #ff4f8b;
+  --led-live: #3dd68c;
+  --led-run: #7aa2ff;
+  --led-hold: #f5a524;
+  --danger: #ff6369;
+  --screen: #05080d;
+  --screen-ink: #c9d3e1;
+
+  --ph-night: #05070c;
+  --ph-astro: #101830;
+  --ph-naut: #1b2a4f;
+  --ph-civil: #344d86;
+  --ph-day: #dcb25a;
+
+  --dl-color-scheme: dark;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bezel);
+  color: var(--ink);
+  font: 400 13px/1.35 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1;
+}
+
+/* Small uppercase field label. */
+.lbl {
+  font: 600 10px/1.2 var(--sans);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* --- Buttons ------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--ink);
+  font: 600 11px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn:active {
+  background: var(--accent-soft);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.btn.on,
+.btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.btn.ghost:hover {
+  border-color: var(--rule-strong);
+}
+.btn svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.btn .num {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Segmented control: a row of .btn joined together. */
+.seg {
+  display: inline-flex;
+  flex: none;
+}
+.seg > .btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.seg > .btn:first-child {
+  margin-left: 0;
+  border-radius: var(--r) 0 0 var(--r);
+}
+.seg > .btn:last-child {
+  border-radius: 0 var(--r) var(--r) 0;
+}
+.seg > .btn.on,
+.seg > .btn[aria-pressed='true'] {
+  position: relative;
+  z-index: 1;
+}
+
+.field {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--ink);
+  font: 500 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color-scheme: inherit;
+}
+.field:hover {
+  border-color: var(--accent);
+}
+
+/* Place colour swatch. */
+.sw {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--c);
+  border-radius: 1px;
+}
+
+/* --- Globe overlay ------------------------------------------------------- */
+
+.ins .globe-marker::before {
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--marker-color);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.55),
+    inset 0 0 0 1px rgb(0 0 0 / 0.55);
+}
+.ins .globe-marker--selected::before {
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  background: radial-gradient(circle, var(--marker-color) 0 2px, transparent 2.5px);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.55),
+    0 0 0 5px color-mix(in srgb, var(--marker-color) 28%, transparent);
+}
+.ins .globe-marker__label {
+  left: 13px;
+  top: -9px;
+  padding: 0 5px;
+  font: 500 10.5px/17px var(--mono);
+  letter-spacing: 0.02em;
+  color: #e6ecf4;
+  background: rgb(5 8 13 / 0.72);
+  border-left: 2px solid var(--marker-color);
+  text-shadow: none;
+}
+.ins .globe-marker--selected .globe-marker__label {
+  left: 15px;
+  color: #fff;
+  background: rgb(5 8 13 / 0.88);
+}
+.ins .globe-sun::before {
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle, #fff7d6 0 30%, #ffc23c 32% 58%, rgb(255 194 60 / 0) 62%);
+  box-shadow: 0 0 12px 3px rgb(255 194 60 / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
