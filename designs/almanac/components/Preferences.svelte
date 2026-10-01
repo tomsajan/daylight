@@ -5,6 +5,7 @@
 <script lang="ts">
   import { settings, resetSettings, type Settings } from '$core/state/settings.svelte';
   import { TIME_SCALE_LABELS, type TimeScaleKind } from '$core/time/timescale';
+  import DesignPicker from './DesignPicker.svelte';
 
   let dialog: HTMLDialogElement;
 
@@ -107,6 +108,12 @@
         <label class="pill"><input type="radio" name="alm-theme" value="light" bind:group={settings.theme} /><span>Paper (light)</span></label>
         <label class="pill"><input type="radio" name="alm-theme" value="dark" bind:group={settings.theme} /><span>Night (dark)</span></label>
       </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Design</legend>
+      <p class="help">The same app in other designs. Your places, date, time and preferences come along.</p>
+      <div class="inline"><DesignPicker label="Switch to" /></div>
     </fieldset>
 
     <footer>
