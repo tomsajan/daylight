@@ -47,11 +47,12 @@ export function formatDelta(minutes: number): string {
 /**
  * How far sunrise or sunset moved since the day before, from the daylight it
  * gained (positive) or lost: ("sunrise", 1.8) → "1 min 48 s earlier",
- * ("sunset", 1.8) → "1 min 48 s later".
+ * ("sunset", 1.8) → "1 min 48 s later"; short: "1m 48s later".
  */
-export function formatShift(event: 'sunrise' | 'sunset', gain: number): string {
-  const amount = formatDelta(gain).slice(1);
-  if (Math.round(Math.abs(gain) * 60) === 0) return 'no change';
+export function formatShift(event: 'sunrise' | 'sunset', gain: number, short = false): string {
+  if (Math.round(Math.abs(gain) * 60) === 0) return short ? 'same' : 'no change';
+  let amount = formatDelta(gain).slice(1);
+  if (short) amount = amount.replace(' min ', 'm ').replace(/ s$/, 's');
   const earlier = event === 'sunrise' ? gain > 0 : gain < 0;
   return `${amount} ${earlier ? 'earlier' : 'later'}`;
 }

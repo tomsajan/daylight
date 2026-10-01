@@ -77,6 +77,12 @@
         <div class="o-seg" role="group" aria-label="Year chart shows">
           <button type="button" aria-pressed={settings.chartMode === 'bands'} onclick={() => (settings.chartMode = 'bands')}>Sunrise &amp; sunset</button>
           <button type="button" aria-pressed={settings.chartMode === 'daylength'} onclick={() => (settings.chartMode = 'daylength')}>Day length</button>
+          <button
+            type="button"
+            aria-pressed={settings.chartMode === 'change'}
+            onclick={() => (settings.chartMode = 'change')}
+            title="Daylight gained or lost each day, and whether in the morning or the evening">Daily change</button
+          >
         </div>
         <div class="zoom" role="group" aria-label="Zoom dates">
           <button type="button" class="o-btn o-btn--sm o-btn--icon" onclick={() => yearChart?.zoomOut()} title="Zoom out" aria-label="Zoom out"><Icon name="minus" /></button>
@@ -134,15 +140,23 @@
 
   <footer>
     <ul class="legend" aria-label="Legend">
-      {#each legend as l (l)}
-        <li><span class="sw" style:background={LIGHT_COLORS[l]}></span>{LIGHT_SHORT[l]}</li>
-      {/each}
+      {#if settings.chartMode === 'change'}
+        <li><span class="sw" style:background={LIGHT_COLORS[Light.Day]}></span>Days getting longer</li>
+        <li><span class="sw" style:background={LIGHT_COLORS[Light.Civil]}></span>Days getting shorter</li>
+      {:else}
+        {#each legend as l (l)}
+          <li><span class="sw" style:background={LIGHT_COLORS[l]}></span>{LIGHT_SHORT[l]}</li>
+        {/each}
+      {/if}
       {#each lines as p (p.id)}
         <li><span class="ln" style:background={app.colorOf(p)}></span>{p.name}</li>
       {/each}
     </ul>
     <p class="hint">
-      {#if touch}
+      {#if settings.chartMode === 'change'}
+        Minutes of daylight gained or lost since the day before. The dashed line is the part won or lost in the morning (sunrise moving), the dotted
+        line the evening (sunset moving). Drag the red line to change the day.
+      {:else if touch}
         <strong>Drag the sun</strong> to move through time, or the red line to change the day. Tap to jump, pinch to zoom, double-tap to reset.
       {:else}
         <strong>Drag the sun</strong> to move through time (hold Shift to keep the date or the hour), or the red line to change the day. Click to

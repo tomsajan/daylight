@@ -21,5 +21,7 @@ describe('formatShift', () => {
     expect(formatShift('sunset', 1.8)).toBe('1 min 48 s later');
     expect(formatShift('sunset', -2)).toBe('2 min 0 s earlier');
     expect(formatShift('sunset', 0.001)).toBe('no change');
+    expect(formatShift('sunrise', -1.8, true)).toBe('1m 48s later');
+    expect(formatShift('sunset', 0.5, true)).toBe('30s later');
   });
 });

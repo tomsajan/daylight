@@ -7,7 +7,7 @@
   import { settings } from '$core/state/settings.svelte';
   import type { DaySummary } from '$core/state/views';
   import { Light, LIGHT_NAMES } from '$core/astro/daylight';
-  import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatMinutes, timeZoneName } from '$core/time/format';
+  import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatMinutes, formatShift, timeZoneName } from '$core/time/format';
   import { TIME_SCALE_LABELS } from '$core/time/timescale';
   import { formatCoordinates } from '$core/geo/place';
   import { LIGHT_COLORS } from './palette';
@@ -57,14 +57,32 @@
 {/if}
 
 {#if trio}
+  <!-- How far sunrise / sunset moved since yesterday; coloured by daylight gained or lost. -->
+  {#snippet shift(event: 'sunrise' | 'sunset', gain: number)}
+    <span
+      class="delta shift"
+      class:delta--up={gain > 1 / 120}
+      class:delta--down={gain < -1 / 120}
+      title="{event === 'sunrise' ? 'Sunrise' : 'Sunset'} vs yesterday: {formatShift(event, gain)} ({formatDelta(gain)} of daylight in the {event === 'sunrise'
+        ? 'morning'
+        : 'evening'})">{formatShift(event, gain, true)}</span
+    >
+  {/snippet}
+
   <div class="trio" class:trio--compact={compact}>
     <div>
       <span class="lbl"><Icon name="sunrise" size={15} /> Sunrise</span>
       <span class="big">{day.sunrise ? formatMinutes(day.sunrise.minutes, hc) : '—'}</span>
+      {#if summary.morningChange != null}
+        {@render shift('sunrise', summary.morningChange)}
+      {/if}
     </div>
     <div>
       <span class="lbl"><Icon name="sunset" size={15} /> Sunset</span>
       <span class="big">{day.sunset ? formatMinutes(day.sunset.minutes, hc) : '—'}</span>
+      {#if summary.eveningChange != null}
+        {@render shift('sunset', summary.eveningChange)}
+      {/if}
     </div>
     <div>
       <span class="lbl">Daylight</span>
@@ -230,6 +248,9 @@
     margin-top: 2px;
     font-size: 12px;
     color: var(--ink-3);
+  }
+  .shift {
+    white-space: nowrap;
   }
   .delta--up {
     color: var(--gold);
