@@ -1,0 +1,173 @@
+/*
+ * Almanac: tokens, page base and the shared typographic pieces (figure heads,
+ * captions) used across components. Paper edition by default; the night
+ * edition applies when <html data-theme="dark">.
+ */
+
+:root {
+  --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  --sans: 'Libre Franklin', 'Helvetica Neue', Arial, sans-serif;
+
+  --paper: #efe9da;
+  --sheet: #f7f3e8;
+  --ink: #22201b;
+  --muted: #6b6353;
+  --rule: #d8ceb7;
+  --rule-strong: #b6aa90;
+  --wash: rgb(31 78 140 / 0.07);
+  --accent: #1f4e8c;
+  --now: #d0441c;
+  --alert: #a3261a;
+  --scheme: light;
+
+  /* Light levels, matching the chart palette (night → day). */
+  --l0: #1c2740;
+  --l1: #2f3d5f;
+  --l2: #506288;
+  --l3: #95a4c2;
+  --l4: #f7e4a6;
+
+  --page: 1240px;
+  --gutter: max(32px, env(safe-area-inset-left), env(safe-area-inset-right));
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --paper: #151a24;
+  --sheet: #1c2230;
+  --ink: #e9e2cf;
+  --muted: #a39b87;
+  --rule: #2c3343;
+  --rule-strong: #4a546b;
+  --wash: rgb(143 180 239 / 0.09);
+  --accent: #8fb4ef;
+  --now: #ff8159;
+  --alert: #ff8a7a;
+  --scheme: dark;
+
+  --l0: #090c15;
+  --l1: #141c31;
+  --l2: #24345c;
+  --l3: #41588b;
+  --l4: #d9b862;
+  color-scheme: dark;
+}
+
+@media (max-width: 759px) {
+  :root {
+    --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 17px/1.5 var(--serif);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+/* --- Shared figure typography ------------------------------------------------- */
+
+.fig {
+  margin: 0;
+}
+
+.fig-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fig-no {
+  margin: 0;
+  font: italic 400 0.95rem/1.2 var(--serif);
+  color: var(--muted);
+}
+
+.fig-head h2 {
+  margin: 0;
+  font: 500 1.65rem/1.15 var(--serif);
+  letter-spacing: -0.005em;
+  font-feature-settings: 'lnum';
+}
+
+figcaption,
+.caption {
+  margin-top: 12px;
+  font: 400 0.92rem/1.5 var(--serif);
+  color: var(--ink);
+  max-width: 44em;
+}
+
+button.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-left: 4px;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* --- Globe overlay, restyled as engraved markers --------------------------------- */
+
+.alm .globe-marker::before {
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #f4eedd;
+  box-shadow: 0 0 0 1px rgb(10 12 20 / 0.6);
+}
+
+.alm .globe-marker--selected::before {
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  box-shadow:
+    0 0 0 1px rgb(10 12 20 / 0.6),
+    0 0 0 5px rgb(244 238 221 / 0.28);
+}
+
+.alm .globe-marker__label {
+  left: 11px;
+  top: -10px;
+  font: italic 500 13px/18px var(--serif);
+  color: #f4eedd;
+  text-shadow:
+    0 0 3px rgb(8 10 18 / 0.95),
+    0 1px 2px rgb(8 10 18 / 0.9);
+}
+
+.alm .globe-marker--selected .globe-marker__label {
+  font-style: normal;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
