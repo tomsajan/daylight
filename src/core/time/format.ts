@@ -73,9 +73,9 @@ export function formatOffset(utcMs: number, scale: TimeScale): string {
   return `UTC${sign}${h}${m ? `:${String(m).padStart(2, '0')}` : ''}`;
 }
 
-/** Short time zone abbreviation where the browser knows one ("CEST"), else the UTC offset. */
 const zoneNameFormats = new Map<string, Intl.DateTimeFormat>();
 
+/** Short time zone abbreviation where the browser knows one ("CEST"), else the UTC offset. */
 export function timeZoneName(utcMs: number, tz: string): string {
   try {
     let f = zoneNameFormats.get(tz);
