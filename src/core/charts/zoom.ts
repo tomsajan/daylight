@@ -5,6 +5,7 @@
  * - two-finger pinch: horizontal spread zooms X, vertical spread zooms Y
  * - double click / double tap: reset
  * - single click / tap: `onTap`
+ * - drag a handle (see `hitTest`): `onDrag` instead of panning
  */
 
 export interface Domain {
@@ -30,6 +31,15 @@ export interface ZoomOptions {
    * (for charts inside scrolling layouts). Pinch and horizontal pan still work.
    */
   touchScroll?: boolean;
+  /**
+   * Draggable handles: return an id when (px, py) in element pixels is on one.
+   * Touch gets a larger tolerance, so the pointer type is passed along.
+   */
+  hitTest?: (px: number, py: number, pointerType: string) => string | null;
+  onDragStart?: (handle: string) => void;
+  /** Pointer position in data coordinates while dragging a handle. */
+  onDrag?: (handle: string, x: number, y: number, e: PointerEvent) => void;
+  onDragEnd?: (handle: string) => void;
 }
 
 export class ChartZoom {
@@ -39,6 +49,7 @@ export class ChartZoom {
   private pointers = new Map<number, { x: number; y: number }>();
   private gesture: { view: Domain; pts: { x: number; y: number }[]; moved: boolean; t: number } | null = null;
   private lastTap = 0;
+  private drag: { handle: string; pointerId: number } | null = null;
   private cleanup: () => void;
 
   constructor(el: HTMLElement, opts: ZoomOptions) {
@@ -52,6 +63,15 @@ export class ChartZoom {
     const onMove = (e: PointerEvent) => this.move(e);
     const onUp = (e: PointerEvent) => this.up(e);
     const onLeave = () => this.opts.onLeave?.();
+    // With touchScroll the browser would scroll on a vertical swipe; claim
+    // touches that start on a handle so it can be dragged up and down.
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (e.touches.length !== 1 || !this.opts.hitTest) return;
+      const p = this.local(t);
+      if (this.opts.hitTest(p.x, p.y, 'touch')) e.preventDefault();
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
@@ -65,6 +85,7 @@ export class ChartZoom {
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('pointercancel', onUp);
       el.removeEventListener('pointerleave', onLeave);
+      el.removeEventListener('touchstart', onTouchStart);
     };
   }
 
@@ -170,15 +191,34 @@ export class ChartZoom {
   }
 
   private down(e: PointerEvent): void {
+    if (this.drag) return;
     this.el.setPointerCapture(e.pointerId);
+    if (this.pointers.size === 0 && this.opts.hitTest) {
+      const p = this.local(e);
+      const handle = this.opts.hitTest(p.x, p.y, e.pointerType);
+      if (handle) {
+        this.drag = { handle, pointerId: e.pointerId };
+        this.el.style.cursor = 'grabbing';
+        this.opts.onDragStart?.(handle);
+        return;
+      }
+    }
     this.pointers.set(e.pointerId, this.local(e));
     this.gesture = { view: structuredClone(this.view), pts: [...this.pointers.values()], moved: false, t: performance.now() };
   }
 
   private move(e: PointerEvent): void {
     const p = this.local(e);
+    if (this.drag) {
+      if (e.pointerId === this.drag.pointerId) {
+        const d = this.toData(p.x, p.y);
+        this.opts.onDrag?.(this.drag.handle, d.x, d.y, e);
+      }
+      return;
+    }
     if (!this.pointers.has(e.pointerId)) {
       if (e.pointerType === 'mouse') {
+        this.el.style.cursor = this.opts.hitTest?.(p.x, p.y, 'mouse') ? 'grab' : '';
         const d = this.toData(p.x, p.y);
         this.opts.onHover?.(d.x, d.y);
       }
@@ -226,6 +266,14 @@ export class ChartZoom {
   }
 
   private up(e: PointerEvent): void {
+    if (this.drag) {
+      if (e.pointerId !== this.drag.pointerId) return;
+      const { handle } = this.drag;
+      this.drag = null;
+      this.el.style.cursor = '';
+      this.opts.onDragEnd?.(handle);
+      return;
+    }
     const g = this.gesture;
     const p = this.local(e);
     this.pointers.delete(e.pointerId);

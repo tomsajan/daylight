@@ -153,6 +153,20 @@ class AppState {
     this.setTime(withMinutesOfDay(this.time, minutes, this.scale));
   }
 
+  #resumeAfterScrub = false;
+
+  /** Pause while the user drags time around (e.g. the sun on a chart); see endScrub. */
+  beginScrub(): void {
+    this.#resumeAfterScrub = this.playing;
+    this.playing = false;
+  }
+
+  /** Resume playing after a drag if it was playing before. */
+  endScrub(): void {
+    if (this.#resumeAfterScrub) this.playing = true;
+    this.#resumeAfterScrub = false;
+  }
+
   goLive(): void {
     this.time = Date.now();
     this.speed = 1;

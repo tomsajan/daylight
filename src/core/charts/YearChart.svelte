@@ -6,6 +6,8 @@
   - `annotations`: labelled marks along the top (see core/state/seasons.ts).
   Zoom: wheel or horizontal pinch = dates, Shift+wheel or vertical pinch = hours,
   drag to pan, double-click/double-tap to reset, click/tap to pick a day.
+  Dragging: the sun dot moves date and time together (Shift locks to one axis);
+  the selected-day line moves only the date. Both report through `onpick`.
   While zoomed, the view follows the selected day when it leaves the view.
 -->
 <script lang="ts" module>
@@ -29,6 +31,7 @@
 
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import { app } from '../state/app.svelte';
   import { Light } from '../astro/daylight';
   import { formatMinutes, formatDuration, type HourCycle } from '../time/format';
   import { ChartZoom, type Domain } from './zoom';
@@ -56,7 +59,12 @@
     annotations?: YearAnnotation[];
     /** One-finger vertical swipes scroll the page (for charts in scrolling layouts). */
     touchScroll?: boolean;
+    /** Tap, or each step of dragging the sun / selected-day line. */
     onpick?: (dayIndex: number, minutes: number) => void;
+    /** Let the sun dot and selected-day line be dragged. */
+    draggable?: boolean;
+    /** Pause the simulation while dragging (resumes afterwards). */
+    pauseWhileDragging?: boolean;
     onhover?: (info: { dayIndex: number; minutes: number } | null) => void;
     onviewchange?: (zoomed: { x: boolean; y: boolean }) => void;
   }
@@ -78,6 +86,8 @@
     midnightTop = true,
     onpick,
     onhover,
+    draggable = true,
+    pauseWhileDragging = true,
   }: Props = $props();
 
   let container: HTMLDivElement;
@@ -90,6 +100,52 @@
   const dayCount = $derived(series[0]?.days.length ?? 365);
   const extent = $derived<Domain>({ x: [0, dayCount], y: [0, 1440] });
   let view = $state<Domain>({ x: [0, 365], y: [0, 1440] });
+
+  // --- Dragging the sun / selected day ------------------------------------------
+
+  let dragStart = { x: 0, y: 0 };
+  let lastPick = '';
+
+  /** Data coordinates to element pixels (same mapping as draw()). */
+  function toPx(dx: number, dy: number) {
+    const p = plot();
+    const fy = (dy - view.y[0]) / (view.y[1] - view.y[0]);
+    return {
+      x: p.left + ((dx - view.x[0]) / (view.x[1] - view.x[0])) * p.width,
+      y: yDown ? p.top + fy * p.height : p.top + (1 - fy) * p.height,
+    };
+  }
+
+  function hitTest(px: number, py: number, pointerType: string): string | null {
+    if (!draggable || selectedIndex == null || !onpick) return null;
+    const touch = pointerType !== 'mouse';
+    const p = plot();
+    if (py < p.top || py > p.top + p.height) return null;
+    const cx = toPx(selectedIndex + 0.5, 0).x;
+    if (mode === 'bands' && currentMinutes != null) {
+      const sun = toPx(selectedIndex + 0.5, currentMinutes);
+      if (Math.hypot(px - sun.x, py - sun.y) <= (touch ? 24 : 11)) return 'sun';
+    }
+    return Math.abs(px - cx) <= (touch ? 14 : 5) ? 'day' : null;
+  }
+
+  function dragTo(handle: string, x: number, y: number, e: PointerEvent) {
+    let dx = x;
+    let dy = handle === 'sun' ? y : dragStart.y;
+    if (handle === 'sun' && e.shiftKey) {
+      // Lock to the axis the pointer has moved along most.
+      const a = toPx(x, y);
+      const b = toPx(dragStart.x, dragStart.y);
+      if (Math.abs(a.x - b.x) > Math.abs(a.y - b.y)) dy = dragStart.y;
+      else dx = dragStart.x;
+    }
+    const i = Math.max(0, Math.min(dayCount - 1, Math.floor(dx)));
+    const m = Math.max(0, Math.min(1439.99, dy));
+    const key = `${i}|${m.toFixed(1)}`;
+    if (key === lastPick) return;
+    lastPick = key;
+    onpick?.(i, m);
+  }
 
   // Extra room at the top for annotation labels, when there are any.
   const margin = $derived({ left: 44, right: 10, top: annotations.length ? 24 : 10, bottom: 24 });
@@ -132,6 +188,16 @@
         reportZoom();
       },
       onTap: (x, y) => onpick?.(Math.max(0, Math.min(dayCount - 1, Math.floor(x))), y),
+      hitTest,
+      onDragStart: () => {
+        dragStart = { x: (selectedIndex ?? 0) + 0.5, y: currentMinutes ?? 0 };
+        lastPick = '';
+        if (pauseWhileDragging) app.beginScrub();
+      },
+      onDrag: dragTo,
+      onDragEnd: () => {
+        if (pauseWhileDragging) app.endScrub();
+      },
       onHover: (x, y) => {
         hover = { x, y };
         onhover?.({ dayIndex: Math.floor(x), minutes: y });
@@ -385,7 +451,7 @@
         ctx.strokeStyle = pal.background;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc((xa + xb) / 2, Y(currentMinutes), 4.5, 0, Math.PI * 2);
+        ctx.arc((xa + xb) / 2, Y(currentMinutes), 5.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }

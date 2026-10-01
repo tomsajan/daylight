@@ -4,7 +4,8 @@
   The horizontal axis is elapsed time since the day began (so a 25-hour DST
   day is 25 hours wide); tick labels show what the clock reads, and a marker
   shows where the clocks change.
-  Zoom & pan like YearChart; click/tap picks a time of day.
+  Zoom & pan like YearChart; click/tap picks a time of day, and the sun (or the
+  "now" line) can be dragged along the day.
 -->
 <script lang="ts" module>
   export interface DaySeries {
@@ -20,6 +21,7 @@
 
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import { app } from '../state/app.svelte';
   import { altitudeCurve, horizonAltitude, Light, TWILIGHT_ALTITUDES, type DaylightOptions } from '../astro/daylight';
   import { sunAltitude } from '../astro/sun';
   import { minutesOfDay } from '../time/timescale';
@@ -43,6 +45,10 @@
     onpick?: (minutes: number) => void;
     /** Picked instant, UTC ms (exact; prefer this). */
     onpicktime?: (utcMs: number) => void;
+    /** Let the sun / "now" line be dragged. */
+    draggable?: boolean;
+    /** Pause the simulation while dragging (resumes afterwards). */
+    pauseWhileDragging?: boolean;
   }
 
   let {
@@ -56,6 +62,8 @@
     touchScroll = false,
     onpick,
     onpicktime,
+    draggable = true,
+    pauseWhileDragging = true,
   }: Props = $props();
 
   let container: HTMLDivElement;
@@ -87,6 +95,32 @@
   });
   let view = $state<Domain>({ x: [0, 1440], y: [-30, 70] });
 
+  let lastPick = NaN;
+
+  /** Report the instant at elapsed minute x of the primary place's day. */
+  function pickAt(x: number) {
+    const s = series[0];
+    if (!s) return;
+    const t = s.day.start + Math.round(Math.max(0, Math.min(s.day.lengthMin - 1, x))) * 60_000;
+    if (t === lastPick) return;
+    lastPick = t;
+    onpicktime?.(t);
+    onpick?.(minutesOfDay(t, s.day.date, s.scale));
+  }
+
+  function hitTest(px: number, py: number, pointerType: string): string | null {
+    const s = series[0];
+    if (!draggable || !s || time == null || time < s.day.start || time >= s.day.end || (!onpick && !onpicktime)) return null;
+    const p = plot();
+    if (py < p.top || py > p.top + p.height) return null;
+    const x = p.left + (((time - s.day.start) / 60_000 - view.x[0]) / (view.x[1] - view.x[0])) * p.width;
+    const alt = sunAltitude(time, s.lat, s.lon);
+    const y = p.top + (1 - (alt - view.y[0]) / (view.y[1] - view.y[0])) * p.height;
+    const touch = pointerType !== 'mouse';
+    if (Math.hypot(px - x, py - y) <= (touch ? 24 : 12)) return 'sun';
+    return Math.abs(px - x) <= (touch ? 14 : 5) ? 'line' : null;
+  }
+
   export function resetZoom() {
     zoom?.reset();
   }
@@ -107,12 +141,15 @@
       plot,
       touchScroll: untrack(() => touchScroll),
       onChange: (v) => (view = { x: [...v.x], y: [...v.y] }),
-      onTap: (x) => {
-        const s = series[0];
-        if (!s) return;
-        const t = s.day.start + Math.max(0, Math.min(s.day.lengthMin - 1, x)) * 60_000;
-        onpicktime?.(t);
-        onpick?.(minutesOfDay(t, s.day.date, s.scale));
+      onTap: pickAt,
+      hitTest,
+      onDragStart: () => {
+        lastPick = NaN;
+        if (pauseWhileDragging) app.beginScrub();
+      },
+      onDrag: (_handle, x) => pickAt(x),
+      onDragEnd: () => {
+        if (pauseWhileDragging) app.endScrub();
       },
     });
     view = structuredClone($state.snapshot(extent) as Domain);
