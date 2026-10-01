@@ -245,15 +245,15 @@
         ctx.fillStyle = color;
         ctx.fill();
       };
-      const share = (i: number, levels: Light[]) => {
+      const minutesAt = (i: number, levels: Light[]) => {
         const d = primary.days[i];
         const total = levels.reduce((s, l) => s + d.durations[l], 0);
-        return (total / d.lengthMin) * 1440;
+        return total;
       };
       ctx.globalAlpha = 0.55;
-      if (twilight.civil) area((i) => share(i, [Light.Day, Light.Civil]), pal.light[Light.Civil]);
+      if (twilight.civil) area((i) => minutesAt(i, [Light.Day, Light.Civil]), pal.light[Light.Civil]);
       ctx.globalAlpha = 0.8;
-      area((i) => share(i, [Light.Day]), pal.light[Light.Day]);
+      area((i) => minutesAt(i, [Light.Day]), pal.light[Light.Day]);
       ctx.globalAlpha = 1;
     }
 
@@ -335,7 +335,7 @@
       for (const s of [...series].reverse()) {
         const isPrimary = s === primary;
         for (const [color, lw] of [[pal.background, isPrimary ? 5 : 4], [s.color, isPrimary ? 2.5 : 2]] as const) {
-          curve(s.days, (d) => (d.daylightMin / d.lengthMin) * 1440, color, lw);
+          curve(s.days, (d) => d.daylightMin, color, lw);
         }
       }
     }
@@ -410,7 +410,7 @@
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let m = Math.ceil(view.y[0] / yStep) * yStep; m <= view.y[1] + 0.01; m += yStep) {
-      const label = mode === 'bands' ? (m >= 1440 ? formatMinutes(0, hourCycle).replace(/^0?0/, '24') : formatMinutes(m, hourCycle)) : formatDuration(m, true);
+      const label = mode === 'bands' ? (m >= 1440 ? formatMinutes(0, hourCycle).replace(/^0?0/, '24') : formatMinutes(m, hourCycle)) : m % 60 === 0 ? `${m / 60} h` : formatDuration(m);
       ctx.fillText(hourCycle === '12' && mode === 'bands' ? label.replace(':00 ', ' ') : label, p.left - 6, Y(m));
     }
     ctx.textAlign = 'center';

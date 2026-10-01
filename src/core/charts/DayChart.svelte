@@ -1,6 +1,9 @@
 <!--
   One day: the sun's altitude through the day for each place, drawn over
   horizontal bands for daylight and the twilight zones.
+  The horizontal axis is elapsed time since the day began (so a 25-hour DST
+  day is 25 hours wide); tick labels show what the clock reads, and a marker
+  shows where the clocks change.
   Zoom & pan like YearChart; click/tap picks a time of day.
 -->
 <script lang="ts" module>
@@ -36,7 +39,10 @@
     showEventLabels?: boolean;
     /** One-finger vertical swipes scroll the page (for charts in scrolling layouts). */
     touchScroll?: boolean;
+    /** Picked time of day as clock minutes (ambiguous in a repeated DST hour). */
     onpick?: (minutes: number) => void;
+    /** Picked instant, UTC ms (exact; prefer this). */
+    onpicktime?: (utcMs: number) => void;
   }
 
   let {
@@ -49,6 +55,7 @@
     showEventLabels = true,
     touchScroll = false,
     onpick,
+    onpicktime,
   }: Props = $props();
 
   let container: HTMLDivElement;
@@ -67,7 +74,7 @@
 
   const curves = $derived(
     series.map((s) =>
-      altitudeCurve(s, s.day.start, s.day.end, 5 * 60_000).map((pt) => ({ m: minutesOfDay(pt.time, s.day.date, s.scale), alt: pt.altitude })),
+      altitudeCurve(s, s.day.start, s.day.end, 5 * 60_000).map((pt) => ({ m: (pt.time - s.day.start) / 60_000, alt: pt.altitude })),
     ),
   );
 
@@ -76,7 +83,7 @@
     let hi = 20;
     for (const c of curves) for (const pt of c) (lo = Math.min(lo, pt.alt)), (hi = Math.max(hi, pt.alt));
     const pad = 6;
-    return { x: [0, 1440], y: [Math.max(-90, Math.floor((lo - pad) / 10) * 10), Math.min(90, Math.ceil((hi + pad) / 10) * 10)] };
+    return { x: [0, series[0]?.day.lengthMin ?? 1440], y: [Math.max(-90, Math.floor((lo - pad) / 10) * 10), Math.min(90, Math.ceil((hi + pad) / 10) * 10)] };
   });
   let view = $state<Domain>({ x: [0, 1440], y: [-30, 70] });
 
@@ -100,7 +107,13 @@
       plot,
       touchScroll: untrack(() => touchScroll),
       onChange: (v) => (view = { x: [...v.x], y: [...v.y] }),
-      onTap: (x) => onpick?.(Math.max(0, Math.min(1439, x))),
+      onTap: (x) => {
+        const s = series[0];
+        if (!s) return;
+        const t = s.day.start + Math.max(0, Math.min(s.day.lengthMin - 1, x)) * 60_000;
+        onpicktime?.(t);
+        onpick?.(minutesOfDay(t, s.day.date, s.scale));
+      },
     });
     view = structuredClone($state.snapshot(extent) as Domain);
     const ro = new ResizeObserver(() => {
@@ -183,10 +196,12 @@
     ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 1;
     const xStep = step(view.x[1] - view.x[0], p.width / 60, [15, 30, 60, 120, 180, 360]);
-    for (let m = Math.ceil(view.x[0] / xStep) * xStep; m <= view.x[1]; m += xStep) {
+    const primary = series[0];
+    const { ticks, jumps } = primary ? clockTicks(primary, xStep, view.x[0], view.x[1]) : { ticks: [], jumps: [] };
+    for (const t of ticks) {
       ctx.beginPath();
-      ctx.moveTo(Math.round(X(m)) + 0.5, p.top);
-      ctx.lineTo(Math.round(X(m)) + 0.5, p.top + p.height);
+      ctx.moveTo(Math.round(X(t.x)) + 0.5, p.top);
+      ctx.lineTo(Math.round(X(t.x)) + 0.5, p.top + p.height);
       ctx.stroke();
     }
     const yStep = step(view.y[1] - view.y[0], p.height / 30, [1, 2, 5, 10, 15, 30]);
@@ -205,26 +220,36 @@
         ctx.strokeStyle = color;
         ctx.lineWidth = lw;
         ctx.beginPath();
-        let prev = -Infinity;
-        for (const pt of c) {
-          // Lift the pen where the clock jumps (DST): backwards, or a skipped hour.
-          if (pt.m < prev || pt.m - prev > 10) ctx.moveTo(X(pt.m), Y(pt.alt));
-          else ctx.lineTo(X(pt.m), Y(pt.alt));
-          prev = pt.m;
-        }
+        c.forEach((pt, i) => (i ? ctx.lineTo(X(pt.m), Y(pt.alt)) : ctx.moveTo(X(pt.m), Y(pt.alt))));
         ctx.stroke();
       }
     }
 
-    // Sunrise / sunset labels for the primary place.
-    const primary = series[0];
+    // Where the clocks change (DST): a dashed line and how far they jump.
     ctx.font = pal.font;
+    for (const j of jumps) {
+      const x = Math.round(X(j.x)) + 0.5;
+      ctx.strokeStyle = pal.text;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, p.top);
+      ctx.lineTo(x, p.top + p.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const h = Math.round(j.shift / 60);
+      ctx.fillStyle = pal.text;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`Clocks ${h > 0 ? '+' : '−'}${Math.abs(h)} h`, x + 4, p.top + 4);
+    }
+
+    // Sunrise / sunset labels for the primary place.
     if (primary && showEventLabels) {
       ctx.fillStyle = pal.text;
       ctx.textBaseline = 'bottom';
       for (const e of [primary.day.sunrise, primary.day.sunset]) {
         if (!e) continue;
-        const x = X(e.minutes);
+        const x = X((e.time - primary.day.start) / 60_000);
         ctx.fillStyle = pal.text;
         ctx.beginPath();
         ctx.arc(x, Y(horizon), 3, 0, Math.PI * 2);
@@ -236,8 +261,7 @@
 
     // Now marker.
     if (time != null && primary && time >= primary.day.start && time < primary.day.end) {
-      const m = minutesOfDay(time, primary.day.date, primary.scale);
-      const x = X(m);
+      const x = X((time - primary.day.start) / 60_000);
       ctx.strokeStyle = pal.marker;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -262,10 +286,49 @@
     for (let a = Math.ceil(view.y[0] / yStep) * yStep; a <= view.y[1]; a += yStep) ctx.fillText(`${a}°`, p.left - 6, Y(a));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    for (let m = Math.ceil(view.x[0] / xStep) * xStep; m <= view.x[1]; m += xStep) {
-      const label = m >= 1440 ? (hourCycle === '12' ? '12 AM' : '24:00') : formatMinutes(m, hourCycle).replace(':00 ', ' ');
-      ctx.fillText(label, X(m), p.top + p.height + 6);
+    let lastRight = -Infinity;
+    for (const t of ticks) {
+      const label = t.m >= 1440 ? (hourCycle === '12' ? '12 AM' : '24:00') : formatMinutes(t.m, hourCycle).replace(':00 ', ' ');
+      const w = ctx.measureText(label).width;
+      // Around a DST change two ticks can sit close together; skip overlapping labels.
+      if (X(t.x) - w / 2 < lastRight + 4) continue;
+      ctx.fillText(label, X(t.x), p.top + p.height + 6);
+      lastRight = X(t.x) + w / 2;
     }
+  }
+
+  /**
+   * Positions (elapsed minutes) where the series' clock shows a multiple of
+   * `stepMin`, plus the places where the clock jumps. Works for any time scale,
+   * including sundial time whose offset drifts slowly through the day.
+   */
+  function clockTicks(s: DaySeries, stepMin: number, x0: number, x1: number) {
+    const ticks: { x: number; m: number }[] = [];
+    const jumps: { x: number; shift: number }[] = [];
+    const length = s.day.lengthMin;
+    const clock = (e: number) => (e <= 0 ? 0 : e >= length ? 1440 : minutesOfDay(s.day.start + e * 60_000, s.day.date, s.scale));
+    const from = Math.max(0, Math.floor(x0 / 5) * 5);
+    const to = Math.min(length, Math.ceil(x1 / 5) * 5);
+    if (from === 0) ticks.push({ x: 0, m: 0 });
+    let e0 = from;
+    let m0 = clock(e0);
+    while (e0 < to) {
+      const e1 = Math.min(e0 + 5, to);
+      const m1 = clock(e1);
+      const dm = m1 - m0;
+      if (Math.abs(dm - (e1 - e0)) > 1) {
+        // The clock jumped (DST): no interpolation across it.
+        jumps.push({ x: e1, shift: dm - (e1 - e0) });
+        if (Math.abs(m1 / stepMin - Math.round(m1 / stepMin)) < 1e-6) ticks.push({ x: e1, m: m1 });
+      } else {
+        for (let k = Math.floor(m0 / stepMin) + 1; k * stepMin <= m1 + 1e-9; k++) {
+          ticks.push({ x: e0 + ((k * stepMin - m0) * (e1 - e0)) / dm, m: k * stepMin });
+        }
+      }
+      e0 = e1;
+      m0 = m1;
+    }
+    return { ticks, jumps };
   }
 
   function step(span: number, count: number, options: number[]): number {

@@ -27,7 +27,7 @@
           twilight={settings.twilight}
           hourCycle={settings.hourCycle}
           {palette}
-          onpick={(m) => app.setMinutesOfDay(m)}
+          onpicktime={(t) => app.setTime(t)}
         />
       {/if}
     </div>

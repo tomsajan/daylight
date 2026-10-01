@@ -107,7 +107,7 @@
             twilight={settings.twilight}
             hourCycle={hc}
             palette={OBS_CHART_PALETTE}
-            onpick={(m) => app.setMinutesOfDay(m)}
+            onpicktime={(t) => app.setTime(t)}
           />
         {/if}
       </div>
