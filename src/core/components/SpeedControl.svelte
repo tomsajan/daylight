@@ -12,6 +12,7 @@
   import type { Snippet } from 'svelte';
   import { app, SPEEDS } from '../state/app.svelte';
   import { formatSpeed } from '../time/format';
+  import './controls.css';
 
   interface Props {
     /** Show the text readout ("▶ 2.5 h/s"). */

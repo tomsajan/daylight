@@ -5,6 +5,7 @@
 <script lang="ts">
   import { app } from '../state/app.svelte';
   import SpeedControl from './SpeedControl.svelte';
+  import './controls.css';
   import { settings } from '../state/settings.svelte';
   import { addDays, dateKey, minutesOfDay, type CivilDate } from '../time/timescale';
   import { formatClock, formatDate, formatOffset } from '../time/format';
@@ -94,43 +95,5 @@
   .dl-time__slider {
     width: 100%;
     accent-color: var(--dl-accent, #3d8bfd);
-  }
-  :global(.dl-btn) {
-    min-width: 38px;
-    height: 38px;
-    padding: 0 12px;
-    border: 1px solid var(--dl-border, #d0d5dd);
-    border-radius: var(--dl-radius, 10px);
-    background: var(--dl-surface, #fff);
-    color: var(--dl-fg, #111);
-    font: inherit;
-    cursor: pointer;
-  }
-  :global(.dl-btn:hover) {
-    border-color: var(--dl-accent, #3d8bfd);
-  }
-  :global(.dl-btn--icon) {
-    padding: 0;
-    width: 38px;
-  }
-  :global(.dl-btn--primary) {
-    background: var(--dl-accent, #3d8bfd);
-    border-color: var(--dl-accent, #3d8bfd);
-    color: var(--dl-on-accent, #fff);
-  }
-  :global(.dl-btn--active),
-  :global(.dl-btn[aria-pressed='true']) {
-    background: color-mix(in srgb, var(--dl-accent, #3d8bfd) 18%, var(--dl-surface, #fff));
-    border-color: var(--dl-accent, #3d8bfd);
-  }
-  :global(.dl-input) {
-    height: 38px;
-    padding: 0 8px;
-    border: 1px solid var(--dl-border, #d0d5dd);
-    border-radius: var(--dl-radius, 10px);
-    background: var(--dl-surface, #fff);
-    color: var(--dl-fg, #111);
-    font: inherit;
-    color-scheme: var(--dl-color-scheme, light);
   }
 </style>

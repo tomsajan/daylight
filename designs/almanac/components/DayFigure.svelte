@@ -10,6 +10,7 @@
   import { almanacDaySeries, almanacPalette, dayMonth, inkOf } from '../almanac.svelte';
 
   let chart: DayChart | undefined = $state();
+  let zoomed = $state(false);
   const others = $derived(orderedPlaces().length > 1);
 </script>
 
@@ -21,9 +22,9 @@
 
   <div class="zoom" role="group" aria-label="Zoom">
     <span class="zl">Hours</span>
-    <button type="button" onclick={() => chart?.zoomOut()} aria-label="Zoom out hours" title="Show more of the day">−</button>
+    <button type="button" onclick={() => chart?.zoomOut()} disabled={!zoomed} aria-label="Zoom out hours" title="Show more of the day">−</button>
     <button type="button" onclick={() => chart?.zoomIn()} aria-label="Zoom in hours" title="Show fewer hours">+</button>
-    <button type="button" class="reset" onclick={() => chart?.resetZoom()}>Whole day</button>
+    <button type="button" class="reset" onclick={() => chart?.resetZoom()} disabled={!zoomed}>Whole day</button>
   </div>
 
   <div class="plate">
@@ -38,6 +39,7 @@
         palette={almanacPalette()}
         touchScroll
         onpicktime={(t) => app.setTime(t)}
+        onviewchange={(z) => (zoomed = z.x || z.y)}
       />
     {/if}
   </div>
@@ -88,8 +90,12 @@
     font-size: 0.82rem;
     font-weight: 600;
   }
-  .zoom button:hover {
+  .zoom button:hover:not(:disabled) {
     border-color: var(--ink);
+  }
+  .zoom button:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   .plate {
     height: 280px;

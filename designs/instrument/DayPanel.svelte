@@ -14,25 +14,19 @@
   let chart: DayChart | undefined = $state();
   let zoomed = $state(false);
   const palette = $derived(instrumentPalette(resolvedTheme()));
-
-  // DayChart has no view-change callback; re-read its zoom state after anything that can change it
-  // (its own wheel / pinch / double-tap handlers run on the canvas before these bubble up).
-  function syncZoom() {
-    zoomed = chart?.isZoomed() ?? false;
-  }
 </script>
 
 <Panel title="Day" sub={formatDate(app.date, 'long')} flush class="day-panel">
   {#snippet tools()}
     <span class="lbl">Zoom</span>
     <div class="seg">
-      <button type="button" class="btn" onclick={() => (chart?.zoomOut(), syncZoom())} disabled={!zoomed} aria-label="Zoom out" title="Show more of the day"><Icon d={ICON.minus} /></button>
-      <button type="button" class="btn" onclick={() => (chart?.zoomIn(), syncZoom())} aria-label="Zoom in" title="Show fewer hours"><Icon d={ICON.plus} /></button>
+      <button type="button" class="btn" onclick={() => chart?.zoomOut()} disabled={!zoomed} aria-label="Zoom out" title="Show more of the day"><Icon d={ICON.minus} /></button>
+      <button type="button" class="btn" onclick={() => chart?.zoomIn()} aria-label="Zoom in" title="Show fewer hours"><Icon d={ICON.plus} /></button>
     </div>
-    <button type="button" class="btn" onclick={() => (chart?.resetZoom(), syncZoom())} disabled={!zoomed} title="Show the whole day (or double-click the chart)">Reset</button>
+    <button type="button" class="btn" onclick={() => chart?.resetZoom()} disabled={!zoomed} title="Show the whole day (or double-click the chart)">Reset</button>
   {/snippet}
   <div class="inner">
-    <div class="chart" role="presentation" onwheel={syncZoom} onpointerup={syncZoom} ontouchend={syncZoom}>
+    <div class="chart">
       {#if app.selected}
         <DayChart
           bind:this={chart}
@@ -44,6 +38,7 @@
           {palette}
           touchScroll={ui.phone}
           onpicktime={(t) => app.setTime(t)}
+          onviewchange={(z) => (zoomed = z.x || z.y)}
         />
       {/if}
     </div>

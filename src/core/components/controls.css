@@ -1,0 +1,39 @@
+/* Base buttons and inputs shared by the core controls; designs restyle them. */
+.dl-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--dl-border, #d0d5dd);
+  border-radius: var(--dl-radius, 10px);
+  background: var(--dl-surface, #fff);
+  color: var(--dl-fg, #111);
+  font: inherit;
+  cursor: pointer;
+}
+.dl-btn:hover {
+  border-color: var(--dl-accent, #3d8bfd);
+}
+.dl-btn--icon {
+  padding: 0;
+  width: 38px;
+}
+.dl-btn--primary {
+  background: var(--dl-accent, #3d8bfd);
+  border-color: var(--dl-accent, #3d8bfd);
+  color: var(--dl-on-accent, #fff);
+}
+.dl-btn--active,
+.dl-btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--dl-accent, #3d8bfd) 18%, var(--dl-surface, #fff));
+  border-color: var(--dl-accent, #3d8bfd);
+}
+.dl-input {
+  height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--dl-border, #d0d5dd);
+  border-radius: var(--dl-radius, 10px);
+  background: var(--dl-surface, #fff);
+  color: var(--dl-fg, #111);
+  font: inherit;
+  color-scheme: var(--dl-color-scheme, light);
+}

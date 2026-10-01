@@ -161,8 +161,10 @@ const earthFragment = /* glsl */ `
       float water = texture2D(waterMap, vUv).r;
       vec3 viewDir = normalize(cameraPosition - vWorld);
       vec3 refl = reflect(-sunDir, n);
-      // Fade the glint out towards the terminator, where it would smear along the limb.
-      float glint = pow(max(dot(refl, viewDir), 0.0), 120.0) * water * smoothstep(0.05, 0.35, s);
+      // Fade the glint out towards the terminator and at grazing view angles,
+      // where foreshortening would stretch it into a smudge along the limb.
+      float facing = smoothstep(0.6, 0.95, dot(n, viewDir));
+      float glint = pow(max(dot(refl, viewDir), 0.0), 200.0) * water * smoothstep(0.05, 0.35, s) * facing;
       color += vec3(1.0, 0.95, 0.85) * glint * 0.35;
     }
 

@@ -49,6 +49,8 @@
     draggable?: boolean;
     /** Pause the simulation while dragging (resumes afterwards). */
     pauseWhileDragging?: boolean;
+    /** Called when the view becomes zoomed or returns to full, per axis. */
+    onviewchange?: (zoomed: { x: boolean; y: boolean }) => void;
   }
 
   let {
@@ -64,6 +66,7 @@
     onpicktime,
     draggable = true,
     pauseWhileDragging = true,
+    onviewchange,
   }: Props = $props();
 
   let container: HTMLDivElement;
@@ -125,7 +128,10 @@
     zoom?.reset();
   }
   export function zoomIn() {
-    zoom?.zoomBy(0.6, 1);
+    // Centre on the sun when it is in this day, like the year chart does on the selected day.
+    const s = series[0];
+    const at = s && time != null && time >= s.day.start && time < s.day.end ? (time - s.day.start) / 60_000 : undefined;
+    zoom?.zoomBy(0.6, 1, at);
   }
   export function zoomOut() {
     zoom?.zoomBy(1 / 0.6, 1);
@@ -140,7 +146,10 @@
       minSpan: { x: 30, y: 5 },
       plot,
       touchScroll: untrack(() => touchScroll),
-      onChange: (v) => (view = { x: [...v.x], y: [...v.y] }),
+      onChange: (v) => {
+        view = { x: [...v.x], y: [...v.y] };
+        reportZoom();
+      },
       onTap: pickAt,
       hitTest,
       onDragStart: () => {
@@ -173,6 +182,17 @@
       if (!wasZoomed) zoom.reset();
     });
   });
+
+  let lastZoom = '';
+  function reportZoom() {
+    const e = extent;
+    const z = { x: view.x[0] > e.x[0] || view.x[1] < e.x[1], y: view.y[0] > e.y[0] || view.y[1] < e.y[1] };
+    const key = `${z.x}${z.y}`;
+    if (key !== lastZoom) {
+      lastZoom = key;
+      onviewchange?.(z);
+    }
+  }
 
   $effect(() => {
     zoom?.setTouchScroll(touchScroll);
