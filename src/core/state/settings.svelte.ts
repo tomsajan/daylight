@@ -14,6 +14,8 @@ export interface Settings {
   theme: 'auto' | 'light' | 'dark';
   /** Year chart: light bands or day length curve. */
   chartMode: 'bands' | 'daylength';
+  /** Globe lighting: day 1 = natural (0.5–2); night 0 = black (0–0.4). */
+  globeBrightness: { day: number; night: number };
   globe: {
     twilightStyle: 'bands' | 'smooth';
     terminatorLines: boolean;
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   twilight: { civil: true, nautical: true, astronomical: true },
   theme: 'auto',
   chartMode: 'bands',
+  globeBrightness: { day: 1, night: 0.06 },
   globe: {
     twilightStyle: 'bands',
     terminatorLines: true,
@@ -60,6 +63,7 @@ function load(): Settings {
       ...saved,
       twilight: { ...DEFAULT_SETTINGS.twilight, ...saved.twilight },
       globe: { ...DEFAULT_SETTINGS.globe, ...saved.globe },
+      globeBrightness: { ...DEFAULT_SETTINGS.globeBrightness, ...saved.globeBrightness },
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);

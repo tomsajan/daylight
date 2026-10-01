@@ -83,6 +83,14 @@
         <label><input type="radio" name="dl-gtw" value="bands" bind:group={settings.globe.twilightStyle} /><span>Twilight bands</span></label>
         <label><input type="radio" name="dl-gtw" value="smooth" bind:group={settings.globe.twilightStyle} /><span>Smooth</span></label>
       </div>
+      <label class="dl-slider">
+        <span>Day brightness <small>{Math.round(settings.globeBrightness.day * 100)}%</small></span>
+        <input type="range" min="0.5" max="2" step="0.05" bind:value={settings.globeBrightness.day} />
+      </label>
+      <label class="dl-slider">
+        <span>Night brightness <small>{settings.globeBrightness.night === 0 ? 'black' : `${Math.round(settings.globeBrightness.night * 100)}%`}</small></span>
+        <input type="range" min="0" max="0.4" step="0.01" bind:value={settings.globeBrightness.night} />
+      </label>
       <div class="dl-checks">
         <label><input type="checkbox" bind:checked={settings.globe.terminatorLines} /> Sunrise &amp; twilight lines</label>
         <label><input type="checkbox" bind:checked={settings.globe.nightLights} /> City lights at night</label>
@@ -165,6 +173,18 @@
     background: var(--dl-surface, #fff);
     color: inherit;
     font: inherit;
+  }
+  .dl-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dl-slider span {
+    display: flex;
+    justify-content: space-between;
+  }
+  .dl-slider input {
+    accent-color: var(--dl-accent, #3d8bfd);
   }
   .dl-checks {
     display: flex;
