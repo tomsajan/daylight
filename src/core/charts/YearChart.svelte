@@ -40,6 +40,8 @@
     showCompare?: boolean;
     /** Midnight at the top (true) or bottom. */
     midnightTop?: boolean;
+    /** One-finger vertical swipes scroll the page (for charts in scrolling layouts). */
+    touchScroll?: boolean;
     onpick?: (dayIndex: number, minutes: number) => void;
     onhover?: (info: { dayIndex: number; minutes: number } | null) => void;
   }
@@ -56,6 +58,7 @@
     showNoon = true,
     showCompare = true,
     midnightTop = true,
+    touchScroll = false,
     onpick,
     onhover,
   }: Props = $props();
@@ -104,6 +107,7 @@
       extent: $state.snapshot(extent),
       minSpan: { x: 7, y: 60 },
       plot,
+      touchScroll: untrack(() => touchScroll),
       yDown: yDown,
       onChange: (v) => (view = { x: [...v.x], y: [...v.y] }),
       onTap: (x, y) => onpick?.(Math.max(0, Math.min(dayCount - 1, Math.floor(x))), y),
@@ -141,6 +145,10 @@
       if (lastMode !== null && m !== lastMode) zoom.resetY();
       lastMode = m;
     });
+  });
+
+  $effect(() => {
+    zoom?.setTouchScroll(touchScroll);
   });
 
   $effect(() => {

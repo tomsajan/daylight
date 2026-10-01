@@ -25,6 +25,11 @@ export interface ZoomOptions {
   onLeave?: () => void;
   /** y grows downward on screen (e.g. time of day top to bottom). */
   yDown?: boolean;
+  /**
+   * Let a one-finger vertical swipe scroll the page instead of panning the chart
+   * (for charts inside scrolling layouts). Pinch and horizontal pan still work.
+   */
+  touchScroll?: boolean;
 }
 
 export class ChartZoom {
@@ -40,7 +45,7 @@ export class ChartZoom {
     this.el = el;
     this.opts = opts;
     this.view = structuredClone(opts.extent);
-    el.style.touchAction = 'none';
+    el.style.touchAction = opts.touchScroll ? 'pan-y' : 'none';
 
     const onWheel = (e: WheelEvent) => this.wheel(e);
     const onDown = (e: PointerEvent) => this.down(e);
@@ -67,6 +72,11 @@ export class ChartZoom {
     this.opts.extent = extent;
     this.view = keepView ? this.clamp(this.view) : structuredClone(extent);
     this.opts.onChange(this.view);
+  }
+
+  setTouchScroll(enabled: boolean): void {
+    this.opts.touchScroll = enabled;
+    this.el.style.touchAction = enabled ? 'pan-y' : 'none';
   }
 
   setYDown(yDown: boolean): void {

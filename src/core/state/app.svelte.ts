@@ -13,6 +13,7 @@ import { reverseGeocode } from '../geo/geocode';
 import {
   civilDateOf,
   makeTimeScale,
+  sameDate,
   withDate,
   withMinutesOfDay,
   type CivilDate,
@@ -60,8 +61,17 @@ class AppState {
   /** The selected place's time scale. */
   scale = $derived(this.selected ? makeTimeScale(settings.timeScale, this.selected) : makeTimeScale('utc', { lon: 0, tz: 'UTC' }));
 
-  /** Calendar date at the selected place (in the chosen time scale). */
-  date: CivilDate = $derived(civilDateOf(this.time, this.scale));
+  #lastDate: CivilDate = { year: 0, month: 0, day: 0 };
+
+  /**
+   * Calendar date at the selected place (in the chosen time scale).
+   * Keeps its identity while the day stays the same, so per-day work isn't redone every frame.
+   */
+  date: CivilDate = $derived.by(() => {
+    const d = civilDateOf(this.time, this.scale);
+    if (!sameDate(d, this.#lastDate)) this.#lastDate = d;
+    return this.#lastDate;
+  });
 
   daylightOptions: DaylightOptions = $derived({ sunrise: settings.sunrise, observerHeight: settings.observerHeight });
 

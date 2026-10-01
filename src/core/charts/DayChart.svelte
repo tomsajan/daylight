@@ -34,6 +34,8 @@
     palette?: ChartPalette;
     /** Label sunrise/sunset times on the horizon line. */
     showEventLabels?: boolean;
+    /** One-finger vertical swipes scroll the page (for charts in scrolling layouts). */
+    touchScroll?: boolean;
     onpick?: (minutes: number) => void;
   }
 
@@ -45,6 +47,7 @@
     hourCycle = '24',
     palette = LIGHT_PALETTE,
     showEventLabels = true,
+    touchScroll = false,
     onpick,
   }: Props = $props();
 
@@ -80,12 +83,22 @@
   export function resetZoom() {
     zoom?.reset();
   }
+  export function zoomIn() {
+    zoom?.zoomBy(0.6, 1);
+  }
+  export function zoomOut() {
+    zoom?.zoomBy(1 / 0.6, 1);
+  }
+  export function isZoomed() {
+    return zoom?.zoomed ?? false;
+  }
 
   onMount(() => {
     zoom = new ChartZoom(canvas, {
       extent: $state.snapshot(extent) as Domain,
       minSpan: { x: 30, y: 5 },
       plot,
+      touchScroll: untrack(() => touchScroll),
       onChange: (v) => (view = { x: [...v.x], y: [...v.y] }),
       onTap: (x) => onpick?.(Math.max(0, Math.min(1439, x))),
     });
@@ -109,6 +122,10 @@
       zoom.setExtent(e, true);
       if (!wasZoomed) zoom.reset();
     });
+  });
+
+  $effect(() => {
+    zoom?.setTouchScroll(touchScroll);
   });
 
   $effect(() => {

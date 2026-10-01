@@ -74,9 +74,16 @@ export function formatOffset(utcMs: number, scale: TimeScale): string {
 }
 
 /** Short time zone abbreviation where the browser knows one ("CEST"), else the UTC offset. */
+const zoneNameFormats = new Map<string, Intl.DateTimeFormat>();
+
 export function timeZoneName(utcMs: number, tz: string): string {
   try {
-    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
+    let f = zoneNameFormats.get(tz);
+    if (!f) {
+      f = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' });
+      zoneNameFormats.set(tz, f);
+    }
+    const part = f
       .formatToParts(utcMs)
       .find((p) => p.type === 'timeZoneName');
     return part?.value.replace('GMT', 'UTC') ?? tz;

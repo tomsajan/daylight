@@ -28,6 +28,7 @@
   let error = $state('');
   let locating = $state(false);
   let controller: AbortController | null = null;
+  let input: HTMLInputElement;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const listId = `dl-search-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -49,7 +50,8 @@
     try {
       results = await searchPlaces(query, controller.signal);
       active = results.length ? 0 : -1;
-      open = true;
+      // A slow answer may arrive after the user left the field.
+      open = document.activeElement === input;
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         error = 'Search is unavailable right now';
@@ -105,6 +107,7 @@
     <svg class="dl-search__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z" fill="currentColor" /></svg>
     <!-- svelte-ignore a11y_autofocus -->
     <input
+      bind:this={input}
       type="search"
       role="combobox"
       aria-expanded={open}
