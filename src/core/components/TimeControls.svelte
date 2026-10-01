@@ -3,7 +3,8 @@
   `compact` hides the date/time inputs (for a slim bar on phones).
 -->
 <script lang="ts">
-  import { app, SPEEDS } from '../state/app.svelte';
+  import { app } from '../state/app.svelte';
+  import SpeedControl from './SpeedControl.svelte';
   import { settings } from '../state/settings.svelte';
   import { addDays, dateKey, minutesOfDay, type CivilDate } from '../time/timescale';
   import { formatClock, formatDate, formatOffset } from '../time/format';
@@ -15,8 +16,6 @@
   let { compact = false, showSlider = true }: Props = $props();
 
   const minutes = $derived(minutesOfDay(app.time, app.date, app.scale));
-  const speedIndex = $derived(Math.max(0, SPEEDS.findIndex((s) => s.value === Math.abs(app.speed))));
-  const reverse = $derived(app.speed < 0);
 
   function onDate(e: Event) {
     const v = (e.target as HTMLInputElement).value;
@@ -35,10 +34,6 @@
     app.setDate(d);
   }
 
-  function setSpeed(i: number) {
-    app.setSpeed(SPEEDS[i].value * (reverse ? -1 : 1));
-    if (!app.playing) app.play();
-  }
 
   const timeValue = $derived(
     `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(Math.floor(minutes % 60)).padStart(2, '0')}`,
@@ -72,20 +67,14 @@
   <div class="dl-time__row">
     <button
       type="button"
-      class="dl-btn dl-btn--icon"
-      onclick={() => app.setSpeed(-app.speed)}
-      aria-pressed={reverse}
-      title={reverse ? 'Running backwards' : 'Running forwards'}
-      aria-label="Reverse direction">{reverse ? '◀' : '▶'}</button
+      class="dl-btn dl-btn--primary dl-btn--icon"
+      onclick={() => app.toggle()}
+      aria-label={app.playing ? 'Pause' : 'Play'}
+      title={app.playing ? 'Pause' : 'Play'}
     >
-    <button type="button" class="dl-btn dl-btn--primary" onclick={() => app.toggle()} aria-label={app.playing ? 'Pause' : 'Play'}>
       {app.playing ? '❚❚' : '▶'}
     </button>
-    <select class="dl-input" value={speedIndex} onchange={(e) => setSpeed(+(e.target as HTMLSelectElement).value)} aria-label="Speed">
-      {#each SPEEDS as s, i (s.value)}
-        <option value={i}>{s.label}</option>
-      {/each}
-    </select>
+    <div class="dl-time__speed"><SpeedControl /></div>
     <button type="button" class="dl-btn" class:dl-btn--active={app.live} onclick={() => app.goLive()} title="Jump to the current time">Now</button>
     {#if compact}
       <span class="dl-time__readout">{formatDate(app.date, 'short')} · {formatClock(app.time, app.scale, settings.hourCycle)}</span>
@@ -111,6 +100,10 @@
     font-size: 0.85em;
     color: var(--dl-muted, #667);
     font-variant-numeric: tabular-nums;
+  }
+  .dl-time__speed {
+    flex: 1 1 260px;
+    min-width: 0;
   }
   .dl-time__slider {
     width: 100%;
