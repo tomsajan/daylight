@@ -9,6 +9,8 @@
   import { settings, resolvedTheme } from '$core/state/settings.svelte';
   import PlaceSearch from '$core/components/PlaceSearch.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import Splitter from '$core/components/Splitter.svelte';
+  import { clamp, panelSizes } from '$core/state/layout.svelte';
   import '$core/components/controls.css';
   import './panel.css';
   import {
@@ -41,6 +43,12 @@
 
   const theme = $derived(resolvedTheme());
   const place = $derived(app.selected);
+
+  // The panel's width, dragged wider for a bigger sky view or narrower for more map.
+  const sizes = panelSizes('eclipse');
+  let panelEl: HTMLElement | undefined = $state();
+  let startWidth = 0;
+  const panelWidth = $derived(sizes.get('panel'));
 
   // --- Which eclipse -----------------------------------------------------------
 
@@ -212,8 +220,8 @@
   const fly = (lat: number, lon: number, zoom: number) => mapView?.flyTo(lat, lon, zoom);
 </script>
 
-<div class="app" data-theme={theme}>
-  <aside class="panel">
+<div class="app" data-theme={theme} style:--panel-width={panelWidth ? `${panelWidth}px` : undefined}>
+  <aside class="panel" bind:this={panelEl}>
     <header>
       <h1>Eclipses</h1>
       <DesignSwitcher />
@@ -261,6 +269,15 @@
   </aside>
 
   <main class="map-wrap">
+    <div class="grip">
+      <Splitter
+        axis="x"
+        label="Panel width"
+        onstart={() => (startWidth = panelEl?.offsetWidth ?? 0)}
+        onmove={(d) => sizes.set('panel', clamp(startWidth + d, 300, Math.min(760, window.innerWidth - 320)))}
+        onreset={() => sizes.clear('panel')}
+      />
+    </div>
     <EclipseMap
       bind:this={mapView}
       {eclipse}
@@ -336,7 +353,7 @@
     --dl-accent: var(--accent);
     --dl-color-scheme: dark;
     display: grid;
-    grid-template-columns: minmax(320px, 400px) 1fr;
+    grid-template-columns: var(--panel-width, minmax(320px, 400px)) minmax(0, 1fr);
     height: 100dvh;
     background: var(--bg);
     color: var(--fg);
@@ -413,6 +430,14 @@
   .map-wrap {
     position: relative;
     min-height: 0;
+  }
+  .grip {
+    position: absolute;
+    left: -5px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    z-index: 5;
   }
   .tools {
     position: absolute;
@@ -505,6 +530,9 @@
     }
     .map-wrap {
       grid-row: 1;
+    }
+    .grip {
+      display: none;
     }
     .panel {
       grid-row: 2;

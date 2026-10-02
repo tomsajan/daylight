@@ -6,7 +6,10 @@
 <script lang="ts">
   import { moonPlace, shadowView, eclipseDeltaT, lunarContacts, type LunarEclipse, type Observer } from '$core/eclipse';
   import { compassPoint } from '$core/time/format';
+  import { refraction } from '$core/astro/sun';
   import { lunarPhaseName } from './describe';
+  import { ground } from './ground.svelte';
+  import GroundSlider from './GroundSlider.svelte';
 
   interface Props {
     eclipse: LunarEclipse;
@@ -61,6 +64,8 @@
   // The penumbra only dims the Moon, and only deep in it noticeably.
   const dim = $derived(1 - 0.45 * Math.min(1, Math.max(0, view.penumbralMagnitude)) ** 2);
   const total = $derived(view.umbralMagnitude >= 1);
+  // The horizon below the Moon by its apparent altitude (refraction lifts it by about half a degree low down).
+  const horizonY = $derived(sky ? moon[1] + (sky.altitude + refraction(sky.altitude)) * scale : SIZE);
   const phase = $derived(time < contacts[0].time || time > contacts.at(-1)!.time ? 'outside the eclipse' : lunarPhaseName(eclipse, time));
 </script>
 
@@ -99,6 +104,10 @@
         opacity={total ? 1 : 0.92}
       />
     </g>
+    {#if horizonY < SIZE}
+      <rect x="0" y={Math.max(0, horizonY)} width={SIZE} height={SIZE} fill="#1c2a1f" opacity={ground.opacity} />
+      <line x1="0" x2={SIZE} y1={horizonY} y2={horizonY} stroke="#9fb29a" stroke-width="1" />
+    {/if}
     <text x="8" y="16" class="label">↑ {place ? 'zenith' : 'north'}</text>
   </svg>
   <figcaption>
@@ -121,6 +130,9 @@
     {/if}
   </figcaption>
 </figure>
+{#if place}
+  <GroundSlider />
+{/if}
 
 <style>
   .sky {
@@ -129,7 +141,7 @@
   svg {
     display: block;
     width: 100%;
-    max-width: 260px;
+    max-width: 380px;
     border-radius: 10px;
   }
   .total {

@@ -146,8 +146,10 @@
     </tbody>
   </table>
   <p class="note">
-    Click a row to go to that moment.{#if place}
-      Greyed: the Moon is below the horizon{moonNow ? (moonNow.visible ? '; now it is up' : '; now it is down') : ''}.{/if}
+    Click a row to go to that moment.
+    {#if place}
+      Greyed: the Moon is below the horizon{moonNow ? (moonNow.visible ? '; now it is up' : '; now it is down') : ''}.
+    {/if}
   </p>
 </section>
 

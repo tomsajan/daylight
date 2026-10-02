@@ -6,6 +6,8 @@
   import type { SkyView } from '$core/eclipse';
   import { compassPoint } from '$core/time/format';
   import { coverage } from './describe';
+  import { ground } from './ground.svelte';
+  import GroundSlider from './GroundSlider.svelte';
 
   interface Props {
     sky: SkyView;
@@ -52,7 +54,7 @@
     <circle cx={c} cy={c} r={R} fill="#ffd76a" mask="url(#sun-mask)" class="sun" />
     <circle cx={c + sky.moonX * R} cy={c - sky.moonY * R} r={sky.moonSunRatio * R} fill="#11131c" opacity={sky.magnitude > 0 ? 1 : 0} />
     {#if horizonY < SIZE}
-      <rect x="0" y={Math.max(0, horizonY)} width={SIZE} height={SIZE} fill="#1c2a1f" opacity="0.92" />
+      <rect x="0" y={Math.max(0, horizonY)} width={SIZE} height={SIZE} fill="#1c2a1f" opacity={ground.opacity} />
       <line x1="0" x2={SIZE} y1={horizonY} y2={horizonY} stroke="#9fb29a" stroke-width="1" />
     {/if}
     <text x="8" y="16" class="zenith">↑ zenith</text>
@@ -65,6 +67,7 @@
     {/if}
   </figcaption>
 </figure>
+<GroundSlider />
 
 <style>
   .sky {
@@ -73,7 +76,7 @@
   svg {
     display: block;
     width: 100%;
-    max-width: 260px;
+    max-width: 380px;
     border-radius: 10px;
   }
   .sun {
