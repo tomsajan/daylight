@@ -16,7 +16,7 @@
 
 <main>
   <h1>Daylight</h1>
-  <p class="lead">How daylight changes through the year, anywhere on Earth. Pick a design:</p>
+  <p class="lead">How the days change, anywhere on Earth. Pick a design:</p>
   <ul>
     {#each designs as d (d.slug)}
       <li>

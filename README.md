@@ -1,6 +1,9 @@
 # Daylight
 
-An interactive web app for seeing how daylight changes through the year, anywhere on Earth.
+**How the days change, anywhere on Earth.**
+
+An interactive web app showing sunrise, sunset, twilight and day length through the year for any place, on a
+3D globe and charts. Live at [daylight.tomsa.xyz](https://daylight.tomsa.xyz).
 
 - **3D globe** with the live day/night line, twilight zones, city lights at night and the point where the sun is overhead.
 - **Year chart** in three modes: sunrise, sunset and twilight bands; hours of daylight; and the **daily change**, how
