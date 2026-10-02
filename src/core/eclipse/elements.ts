@@ -9,10 +9,9 @@
  * plane are in Earth equatorial radii; element time t is in hours from t0, in
  * Terrestrial Time (TT).
  *
- * Elements: "Eclipse Predictions by Fred Espenak, NASA's GSFC".
+ * The elements themselves are in ./catalog.
  */
 
-import data from './data/solar-eclipses.json';
 import { deltaT } from './deltaT';
 
 export type EclipseType = 'T' | 'A' | 'H' | 'P';
@@ -49,9 +48,6 @@ export interface SolarEclipse {
   /** NASA's figures for greatest eclipse (catalog precision for some eclipses). */
   greatest: { lat: number; lon: number; sunAlt: number; pathWidth?: number; duration?: number };
 }
-
-export const SOLAR_ECLIPSES: readonly SolarEclipse[] = data.eclipses as SolarEclipse[];
-export const ECLIPSE_CREDIT: string = data.credit;
 
 export const RAD = Math.PI / 180;
 export const DEG = 180 / Math.PI;
@@ -141,13 +137,4 @@ export function hourAngle(el: ElementsAt, lon: number, dT: number): number {
 export function longitudeForHourAngle(el: ElementsAt, h: number, dT: number): number {
   const lon = h * DEG - el.mu + DEG_PER_DELTA_T_SECOND * dT;
   return ((((lon + 180) % 360) + 360) % 360) - 180;
-}
-
-/** The eclipse whose greatest phase is nearest to a given instant. */
-export function nearestEclipse(ms: number, eclipses: readonly SolarEclipse[] = SOLAR_ECLIPSES): SolarEclipse {
-  let best = eclipses[0];
-  for (const e of eclipses) {
-    if (Math.abs(greatestEclipseMs(e, e.deltaT) - ms) < Math.abs(greatestEclipseMs(best, best.deltaT) - ms)) best = e;
-  }
-  return best;
 }

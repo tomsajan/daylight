@@ -3,6 +3,7 @@
   for checking its numbers against published ones.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
   import {
@@ -21,18 +22,34 @@
 
   const TYPE_NAMES = { T: 'Total', A: 'Annular', H: 'Hybrid', P: 'Partial' } as const;
 
+  interface Props {
+    /** The eclipse to draw on the globe, if any. */
+    shown?: SolarEclipse | null;
+  }
+  let { shown = $bindable(null) }: Props = $props();
+
   let onlyVisible = $state(true);
+  let onGlobe = $state(true);
   let chosenId = $state<string | undefined>();
 
   const place = $derived(app.selected);
   // Every eclipse as seen from the selected place; about a millisecond each.
   const seen = $derived(place ? SOLAR_ECLIPSES.map((e) => localCircumstances(e, place)) : []);
   const listed = $derived(seen.filter((l) => !onlyVisible || l.visible));
-  const next = $derived(listed.find((l) => greatestEclipseMs(l.eclipse) > app.time) ?? listed.at(-1));
-  const local = $derived(seen.find((l) => l.eclipse.id === chosenId) ?? next);
+  // Until one is picked, the first eclipse not yet over when the panel opens (or the place changes).
+  $effect(() => {
+    if (chosenId || !listed.length) return;
+    const now = untrack(() => app.time);
+    const end = (l: (typeof listed)[number]) => l.c4?.time ?? greatestEclipseMs(l.eclipse) + 3 * 3_600_000;
+    chosenId = (listed.find((l) => end(l) > now) ?? listed[listed.length - 1]).eclipse.id;
+  });
+  const local = $derived(seen.find((l) => l.eclipse.id === chosenId));
   const eclipse = $derived(local?.eclipse);
   const greatest = $derived(eclipse ? greatestEclipse(eclipse) : undefined);
   const greatestNasa = $derived(eclipse ? greatestEclipse(eclipse, { deltaT: eclipse.deltaT }) : undefined);
+  $effect(() => {
+    shown = onGlobe ? (eclipse ?? null) : null;
+  });
 
   const utc = (ms: number) => new Date(Math.round(ms / 1000) * 1000).toISOString().slice(11, 19);
   const clock = (ms: number) => formatClock(ms, app.scale, settings.hourCycle, true);
@@ -58,6 +75,7 @@
   <div class="head">
     <h3>Solar eclipses{place ? ` from ${place.name}` : ''}</h3>
     <label><input type="checkbox" bind:checked={onlyVisible} /> Visible from here only</label>
+    <label><input type="checkbox" bind:checked={onGlobe} /> Show on globe</label>
     <select value={eclipse?.id} onchange={(ev) => (chosenId = ev.currentTarget.value)}>
       {#each listed as l (l.eclipse.id)}
         <option value={l.eclipse.id}>
@@ -68,6 +86,9 @@
   </div>
 
   {#if eclipse && local && greatest && greatestNasa}
+    <div class="global-nav">
+      <button class="dl-btn" onclick={() => app.setTime(greatest.time)}>Go to greatest eclipse ({utc(greatest.time)} UT)</button>
+    </div>
     <div class="cols">
       <div>
         <h4>{TYPE_NAMES[eclipse.type]} solar eclipse of {eclipse.id}</h4>
@@ -125,6 +146,7 @@
             </tbody>
           </table>
           {#if local.max}
+            <button class="dl-btn" onclick={() => app.setTime(local.c1?.time ?? local.max!.time)}>Go to first contact</button>
             <button class="dl-btn" onclick={() => app.setTime(local.max!.time)}>Go to maximum</button>
           {/if}
         {/if}
@@ -157,6 +179,9 @@
   }
   select {
     max-width: 100%;
+  }
+  .global-nav {
+    margin-top: 8px;
   }
   .cols {
     display: grid;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as Astronomy from 'astronomy-engine';
-import { SOLAR_ECLIPSES, type SolarEclipse } from './elements';
+import { SOLAR_ECLIPSES } from './catalog';
+import type { SolarEclipse } from './elements';
 import { deltaT, deltaTMeasured } from './deltaT';
 import { localCircumstances, phaseAt } from './local';
 import { centralLine, centralPointAt, distanceKm, greatestEclipse, limitsAt } from './path';

@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { subsolarPoint } from '../astro/sun';
+import { eclipseDeltaT, greatestEclipseMs, msToElementTime, type SolarEclipse } from '../eclipse/elements';
 // Imported, not served from /public: Vite then emits hashed files with URLs that work
 // from every page (designs live in subfolders) and under any base path.
 import dayTexture from './textures/earth-blue-marble.jpg';
@@ -48,10 +49,15 @@ export interface GlobeOptions {
   /** Labels next to markers. */
   showLabels: boolean;
   showSunMarker: boolean;
+  /** With an eclipse set: its whole footprint (path of totality or annularity, coverage contours). */
+  eclipsePath: boolean;
+  /** With an eclipse set: the Moon's shadow at the current time. */
+  eclipseShadow: boolean;
   /** CSS colours. */
   atmosphereColor: string;
   lineColor: string;
   terminatorColor: string;
+  eclipseColor: string;
   background: string | null;
 }
 
@@ -69,9 +75,12 @@ export const DEFAULT_GLOBE_OPTIONS: GlobeOptions = {
   autoRotate: false,
   showLabels: true,
   showSunMarker: true,
+  eclipsePath: true,
+  eclipseShadow: true,
   atmosphereColor: '#5aa8ff',
   lineColor: '#ffffff',
   terminatorColor: '#ffcc66',
+  eclipseColor: '#ff6b4a',
   background: null,
 };
 
@@ -118,9 +127,65 @@ const earthFragment = /* glsl */ `
   uniform float dayLevel;
   uniform float nightLevel;
   uniform vec3 terminatorColor;
+  // Solar eclipse: Besselian elements as polynomials in t (hours from t0, TT).
+  uniform float eclPath;
+  uniform float eclShadow;
+  uniform vec4 eclX;
+  uniform vec4 eclY;
+  uniform vec3 eclD;
+  uniform vec3 eclMu;
+  uniform vec3 eclL1;
+  uniform vec3 eclL2;
+  uniform vec2 eclTanF;
+  uniform vec2 eclRange;
+  // −ΔT turned into degrees of Earth rotation.
+  uniform float eclLonShift;
+  // Element time of greatest eclipse (start of each pixel's search) and of now.
+  uniform float eclGreatest;
+  uniform float eclNow;
+  uniform vec3 eclColor;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorld;
+
+  // The observer relative to the Moon's shadow at element time t; the same
+  // quantities as relative() in core/eclipse/local.ts.
+  struct Rel { float u; float v; float a; float b; float L1; float L2; float zeta; };
+
+  Rel relAt(float t, float rs, float rc, float lon) {
+    float x = eclX.x + t * (eclX.y + t * (eclX.z + t * eclX.w));
+    float y = eclY.x + t * (eclY.y + t * (eclY.z + t * eclY.w));
+    float dx = eclX.y + t * (2.0 * eclX.z + 3.0 * t * eclX.w);
+    float dy = eclY.y + t * (2.0 * eclY.z + 3.0 * t * eclY.w);
+    float d = radians(eclD.x + t * (eclD.y + t * eclD.z));
+    float dd = radians(eclD.y + 2.0 * t * eclD.z);
+    float dmu = radians(eclMu.y + 2.0 * t * eclMu.z);
+    float h = radians(eclMu.x + t * (eclMu.y + t * eclMu.z) + lon + eclLonShift);
+    float sd = sin(d);
+    float cd = cos(d);
+    float xi = rc * sin(h);
+    float eta = rs * cd - rc * sd * cos(h);
+    float zeta = rs * sd + rc * cd * cos(h);
+    Rel r;
+    r.u = x - xi;
+    r.v = y - eta;
+    r.a = dx - dmu * rc * cos(h);
+    r.b = dy - (dmu * xi * sd - zeta * dd);
+    r.L1 = eclL1.x + t * (eclL1.y + t * eclL1.z) - zeta * eclTanF.x;
+    r.L2 = eclL2.x + t * (eclL2.y + t * eclL2.z) - zeta * eclTanF.y;
+    r.zeta = zeta;
+    return r;
+  }
+
+  // Fraction of the Sun's disc (radius 1) covered by the Moon's (radius k) at centre distance s.
+  float covered(float sep, float k) {
+    if (sep >= 1.0 + k) return 0.0;
+    if (sep <= abs(1.0 - k)) return k >= 1.0 ? 1.0 : k * k;
+    float a1 = acos(clamp((sep * sep + 1.0 - k * k) / (2.0 * sep), -1.0, 1.0));
+    float a2 = acos(clamp((sep * sep + k * k - 1.0) / (2.0 * sep * k), -1.0, 1.0));
+    float tri = 0.5 * sqrt(max(0.0, (-sep + 1.0 + k) * (sep + 1.0 - k) * (sep - 1.0 + k) * (sep + 1.0 + k)));
+    return clamp((a1 + k * k * a2 - tri) / 3.14159265, 0.0, 1.0);
+  }
 
   // How far from night (0) to day (1) the light is at a sun altitude (degrees).
   float lightFraction(float alt) {
@@ -136,15 +201,34 @@ const earthFragment = /* glsl */ `
     return f * f;
   }
 
-  float isoLine(float alt, float level) {
-    float w = fwidth(alt) * 1.2;
-    return 1.0 - smoothstep(0.0, w, abs(alt - level));
+  float isoLine(float value, float level) {
+    float w = fwidth(value) * 1.2;
+    return 1.0 - smoothstep(0.0, w, abs(value - level));
   }
 
   void main() {
     vec3 n = normalize(vNormal);
     float s = dot(n, sunDir);
     float alt = degrees(asin(clamp(s, -1.0, 1.0)));
+
+    // The observer on the WGS 84 ellipsoid (texture latitudes are geodetic), for the eclipse.
+    float phi = asin(clamp(n.y, -1.0, 1.0));
+    float lon = degrees(atan(-n.z, n.x));
+    float reduced = atan(0.99664719 * sin(phi), cos(phi));
+    float rs = 0.99664719 * sin(reduced);
+    float rc = cos(reduced);
+
+    // The Moon's shadow now: how much of the Sun is hidden, and the outlines of penumbra and umbra.
+    float cover = 0.0;
+    float shadowEdge = 0.0;
+    if (eclShadow > 0.5) {
+      Rel r = relAt(eclNow, rs, rc, lon);
+      float m = length(vec2(r.u, r.v));
+      float ratio = (r.L1 - r.L2) / (r.L1 + r.L2);
+      float up = step(0.0, r.zeta) * smoothstep(-1.5, 0.0, alt);
+      cover = covered(m * (1.0 + ratio) / r.L1, ratio) * up;
+      shadowEdge = (isoLine(m - r.L1, 0.0) * 0.45 + isoLine(m - abs(r.L2), 0.0) * 0.95) * up;
+    }
 
     vec3 day = texture2D(dayMap, vUv).rgb;
     vec3 night = texture2D(nightMap, vUv).rgb;
@@ -154,6 +238,11 @@ const earthFragment = /* glsl */ `
     float sunlit = mix(0.8, 1.0, clamp(s * 2.5, 0.0, 1.0));
     float level = mix(nightLevel, dayLevel, lightFraction(alt));
     vec3 color = day * level * mix(1.0, sunlit, step(-0.833, alt));
+    // Daylight falls with the hidden fraction of the Sun. The fraction drops off fast away from
+    // the centre line, so it is eased to show the whole partial zone; the result is a brightness
+    // as seen (colours here are linear, hence the 2.2), down to deep twilight in the umbra.
+    float seenLight = 1.0 - 0.85 * pow(max(cover, 1e-6), 0.7);
+    color *= pow(seenLight, 2.2);
 
     // City lights fade in as the sky darkens (nautical twilight onward).
     float dark = 1.0 - smoothstep(-12.0, -4.0, alt);
@@ -168,6 +257,29 @@ const earthFragment = /* glsl */ `
       float facing = smoothstep(0.6, 0.95, dot(n, viewDir));
       float glint = pow(max(dot(refl, viewDir), 0.0), 200.0) * water * smoothstep(0.05, 0.35, s) * facing;
       color += vec3(1.0, 0.95, 0.85) * glint * 0.35;
+    }
+
+    color = mix(color, vec3(1.0, 0.93, 0.85), clamp(shadowEdge, 0.0, 1.0));
+
+    if (eclPath > 0.5) {
+      // Each pixel finds its own greatest eclipse: the instant it passes closest to the shadow axis.
+      float t = eclGreatest;
+      Rel r = relAt(t, rs, rc, lon);
+      for (int i = 0; i < 5; i++) {
+        t -= (r.u * r.a + r.v * r.b) / (r.a * r.a + r.b * r.b);
+        r = relAt(t, rs, rc, lon);
+      }
+      float m = length(vec2(r.u, r.v));
+      float magnitude = (r.L1 - m) / (r.L1 + r.L2);
+      // Only where the Sun is up at that moment, within the span the elements cover.
+      float seen = step(0.0, r.zeta) * step(eclRange.x, t) * step(t, eclRange.y);
+      float edge = m - abs(r.L2);
+      float inside = 1.0 - smoothstep(-fwidth(edge), fwidth(edge), edge);
+      color = mix(color, eclColor, 0.3 * inside * seen);
+      // Path limits, central line, the outer limit of the partial eclipse, and magnitude 0.2 to 0.8.
+      float l = isoLine(edge, 0.0) * 0.95 + isoLine(m, 0.0) * 0.45 + isoLine(magnitude, 0.0) * 0.5;
+      for (int k = 1; k <= 4; k++) l += isoLine(magnitude, 0.2 * float(k)) * 0.22;
+      color = mix(color, eclColor, clamp(l * seen * step(0.0, magnitude), 0.0, 1.0));
     }
 
     if (lines > 0.5) {
@@ -234,6 +346,8 @@ export class GlobeRenderer {
   private sunEl: HTMLDivElement;
   private sunDir = new THREE.Vector3(1, 0, 0);
   private subsolar = { lat: 0, lon: 0 };
+  private time = Date.now();
+  private eclipse: { e: SolarEclipse; deltaT: number } | null = null;
   private dirty = true;
   private frame = 0;
   private resizeObserver: ResizeObserver;
@@ -305,6 +419,20 @@ export class GlobeRenderer {
           nightLevel: { value: 0.06 },
           specular: { value: 1 },
           terminatorColor: { value: new THREE.Color() },
+          eclPath: { value: 0 },
+          eclShadow: { value: 0 },
+          eclX: { value: new THREE.Vector4() },
+          eclY: { value: new THREE.Vector4() },
+          eclD: { value: new THREE.Vector3() },
+          eclMu: { value: new THREE.Vector3() },
+          eclL1: { value: new THREE.Vector3() },
+          eclL2: { value: new THREE.Vector3() },
+          eclTanF: { value: new THREE.Vector2() },
+          eclRange: { value: new THREE.Vector2() },
+          eclLonShift: { value: 0 },
+          eclGreatest: { value: 0 },
+          eclNow: { value: 0 },
+          eclColor: { value: new THREE.Color() },
         },
       }),
     );
@@ -352,6 +480,8 @@ export class GlobeRenderer {
   // --- Public API ----------------------------------------------------------
 
   setTime(utcMs: number): void {
+    this.time = utcMs;
+    this.updateEclipseTime();
     this.subsolar = subsolarPoint(utcMs);
     const prev = this.sunDir.clone();
     this.sunDir.copy(latLonToVector(this.subsolar.lat, this.subsolar.lon));
@@ -397,6 +527,29 @@ export class GlobeRenderer {
       label.style.display = this.opts.showLabels ? '' : 'none';
     }
     this.dirty = true;
+  }
+
+  /**
+   * Show a solar eclipse: its footprint and, while the time is within it, the
+   * Moon's shadow. ΔT defaults to the measured or extrapolated value.
+   */
+  setEclipse(e: SolarEclipse | null, deltaT?: number): void {
+    this.eclipse = e ? { e, deltaT: deltaT ?? eclipseDeltaT(e) } : null;
+    const u = this.earth.material.uniforms;
+    if (e) {
+      const dT = this.eclipse!.deltaT;
+      (u.eclX.value as THREE.Vector4).set(e.x[0], e.x[1], e.x[2], e.x[3]);
+      (u.eclY.value as THREE.Vector4).set(e.y[0], e.y[1], e.y[2], e.y[3]);
+      (u.eclD.value as THREE.Vector3).set(e.d[0], e.d[1], e.d[2]);
+      (u.eclMu.value as THREE.Vector3).set(e.mu[0], e.mu[1], e.mu[2]);
+      (u.eclL1.value as THREE.Vector3).set(e.l1[0], e.l1[1], e.l1[2]);
+      (u.eclL2.value as THREE.Vector3).set(e.l2[0], e.l2[1], e.l2[2]);
+      (u.eclTanF.value as THREE.Vector2).set(e.tanF1, e.tanF2);
+      (u.eclRange.value as THREE.Vector2).set(e.range[0], e.range[1]);
+      u.eclLonShift.value = -0.00417807 * dT;
+      u.eclGreatest.value = msToElementTime(e, greatestEclipseMs(e, dT), dT);
+    }
+    this.applyOptions();
   }
 
   setOptions(options: Partial<GlobeOptions>): void {
@@ -455,6 +608,9 @@ export class GlobeRenderer {
     u.nightLevel.value = o.nightBrightness;
     u.specular.value = o.specular ? 1 : 0;
     (u.terminatorColor.value as THREE.Color).set(o.terminatorColor);
+    (u.eclColor.value as THREE.Color).set(o.eclipseColor);
+    u.eclPath.value = this.eclipse && o.eclipsePath ? 1 : 0;
+    this.updateEclipseTime();
     (this.atmosphere.material.uniforms.glowColor.value as THREE.Color).set(o.atmosphereColor);
     this.atmosphere.visible = o.atmosphere;
     this.latLines.visible = o.latitudeLines;
@@ -470,6 +626,20 @@ export class GlobeRenderer {
     for (const el of this.markerEls.values()) {
       (el.firstElementChild as HTMLElement).style.display = o.showLabels ? '' : 'none';
     }
+    this.dirty = true;
+  }
+
+  private updateEclipseTime(): void {
+    const u = this.earth.material.uniforms;
+    if (!this.eclipse) {
+      u.eclShadow.value = 0;
+      return;
+    }
+    const { e, deltaT } = this.eclipse;
+    const t = msToElementTime(e, this.time, deltaT);
+    u.eclNow.value = t;
+    // Outside the span of the polynomials the shadow is off the Earth anyway.
+    u.eclShadow.value = this.opts.eclipseShadow && t >= e.range[0] && t <= e.range[1] ? 1 : 0;
     this.dirty = true;
   }
 

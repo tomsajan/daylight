@@ -5,6 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { GlobeRenderer, type GlobeMarker, type GlobeOptions } from './GlobeRenderer';
+  import type { SolarEclipse } from '../eclipse/elements';
   import './globe.css';
 
   interface Props {
@@ -16,11 +17,26 @@
     focus?: { lat: number; lon: number } | null;
     /** Camera distance in Earth radii when flying to `focus`. */
     focusDistance?: number;
+    /** A solar eclipse to draw: its path, and the Moon's shadow while it is under way. */
+    eclipse?: SolarEclipse | null;
+    /** ΔT for the eclipse, seconds; measured or extrapolated by default. */
+    eclipseDeltaT?: number;
     onpick?: (lat: number, lon: number) => void;
     onmarker?: (id: string) => void;
   }
 
-  let { time, markers = [], selectedId = null, options = {}, focus = null, focusDistance, onpick, onmarker }: Props = $props();
+  let {
+    time,
+    markers = [],
+    selectedId = null,
+    options = {},
+    focus = null,
+    focusDistance,
+    eclipse = null,
+    eclipseDeltaT,
+    onpick,
+    onmarker,
+  }: Props = $props();
 
   let container: HTMLDivElement;
   let globe = $state<GlobeRenderer | null>(null);
@@ -60,6 +76,9 @@
   });
   $effect(() => {
     globe?.setOptions($state.snapshot(options) as Partial<GlobeOptions>);
+  });
+  $effect(() => {
+    globe?.setEclipse(eclipse, eclipseDeltaT);
   });
 
   let lastFocus = '';

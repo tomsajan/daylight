@@ -25,6 +25,7 @@
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import Splitter from '$core/components/Splitter.svelte';
   import EclipsePanel from './EclipsePanel.svelte';
+  import type { SolarEclipse } from '$core/eclipse';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { LIGHT_NAMES } from '$core/astro/daylight';
   import { addDays } from '$core/time/timescale';
@@ -34,6 +35,7 @@
   let addMode = $state(false);
   let settingsOpen = $state(false);
   let yearChart: YearChart | undefined = $state();
+  let eclipse = $state.raw<SolarEclipse | null>(null);
 
   const theme = $derived(resolvedTheme());
   const summary = $derived(daySummary());
@@ -77,6 +79,7 @@
       options={globeOptions()}
       focus={app.selected}
       focusDistance={3.8}
+      {eclipse}
       onpick={(lat, lon) => app.pickPoint(lat, lon, addMode)}
       onmarker={(id) => app.select(id)}
     />
@@ -205,7 +208,7 @@
     </div>
   </section>
 
-  <EclipsePanel />
+  <EclipsePanel bind:shown={eclipse} />
 
   {#if settingsOpen}
     <aside class="settings">
