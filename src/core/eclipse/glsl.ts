@@ -5,6 +5,7 @@
  * The chunk declares its uniforms (prefixed ecl) and these functions:
  *   observerOnEllipsoid(lat)   ρ sin φ′ and ρ cos φ′ for a geodetic latitude (radians)
  *   relAt(t, rs, rc, lon)      the observer relative to the shadow at element time t
+ *   towardsLimb(r)             below the horizon, the shadow on the air that lights its twilight
  *   eclipseMaximum(rs, rc, lon, t)  the observer's greatest eclipse, searched from t
  *   covered(sep, k)            fraction of the Sun's disc hidden
  * Set the uniforms with eclipseUniforms().
@@ -29,7 +30,7 @@ export const ECLIPSE_GLSL = /* glsl */ `
 
   // The observer relative to the Moon's shadow at element time t; the same
   // quantities as relative() in core/eclipse/local.ts.
-  struct Rel { float u; float v; float a; float b; float L1; float L2; float zeta; };
+  struct Rel { float u; float v; float a; float b; float L1; float L2; float xi; float eta; float zeta; };
 
   vec2 observerOnEllipsoid(float phi) {
     float reduced = atan(0.99664719 * sin(phi), cos(phi));
@@ -57,7 +58,27 @@ export const ECLIPSE_GLSL = /* glsl */ `
     r.b = dy - (dmu * xi * sd - zeta * dd);
     r.L1 = eclL1.x + t * (eclL1.y + t * eclL1.z) - zeta * eclTanF.x;
     r.L2 = eclL2.x + t * (eclL2.y + t * eclL2.z) - zeta * eclTanF.y;
+    r.xi = xi;
+    r.eta = eta;
     r.zeta = zeta;
+    return r;
+  }
+
+  // Once the Sun has set, the sky is lit by sunlit air between the place and the Sun, seen from
+  // the Sun towards the edge of the Earth's disc in the place's direction. The shadow there is
+  // what dims the twilight; the place's own (ξ, η) would put a mirror image of the shadow on
+  // the night side. So the place moves out to the edge, joining up with it at the horizon.
+  Rel towardsLimb(Rel r) {
+    if (r.zeta >= 0.0) return r;
+    vec2 p = vec2(r.xi, r.eta);
+    vec2 shift = p * (length(vec3(p, r.zeta)) / max(length(p), 1e-6) - 1.0);
+    r.u -= shift.x;
+    r.v -= shift.y;
+    r.L1 += r.zeta * eclTanF.x;
+    r.L2 += r.zeta * eclTanF.y;
+    r.xi += shift.x;
+    r.eta += shift.y;
+    r.zeta = 0.0;
     return r;
   }
 

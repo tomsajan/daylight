@@ -171,10 +171,12 @@ ${ECLIPSE_GLSL}
     float cover = 0.0;
     float shadowEdge = 0.0;
     if (eclShadow > 0.5) {
-      Rel r = relAt(eclNow, rs, rc, lon);
+      Rel r = towardsLimb(relAt(eclNow, rs, rc, lon));
       float m = length(vec2(r.u, r.v));
       float ratio = (r.L1 - r.L2) / (r.L1 + r.L2);
-      float up = step(0.0, r.zeta) * smoothstep(-1.5, 0.0, alt);
+      // Twilight is sunlight on the air along the same line to the Sun, so the Moon dims it too:
+      // the shadow goes on to the end of twilight, and the darker of the two is drawn below.
+      float up = smoothstep(-18.5, -17.5, alt);
       cover = covered(m * (1.0 + ratio) / r.L1, ratio) * up;
       shadowEdge = (isoLine(m - r.L1, 0.0) * 0.45 + isoLine(m - abs(r.L2), 0.0) * 0.95) * up;
     }
@@ -186,12 +188,13 @@ ${ECLIPSE_GLSL}
     // stays well above twilight so day and night never blur together.
     float sunlit = mix(0.8, 1.0, clamp(s * 2.5, 0.0, 1.0));
     float level = mix(nightLevel, dayLevel, lightFraction(alt));
-    vec3 color = day * level * mix(1.0, sunlit, step(-0.833, alt));
+    float twilight = level * mix(1.0, sunlit, step(-0.833, alt));
     // Daylight falls with the hidden fraction of the Sun. The fraction drops off fast away from
     // the centre line, so it is eased to show the whole partial zone; the result is a brightness
     // as seen (colours here are linear, hence the 2.2), down to deep twilight in the umbra.
+    // Where the shadow reaches into twilight the darker of the two wins, so it never lightens.
     float seenLight = 1.0 - 0.85 * pow(max(cover, 1e-6), 0.7);
-    color *= pow(seenLight, 2.2);
+    vec3 color = day * min(twilight, dayLevel * sunlit * pow(seenLight, 2.2));
 
     // City lights fade in as the sky darkens (nautical twilight onward).
     float dark = 1.0 - smoothstep(-12.0, -4.0, alt);

@@ -118,6 +118,14 @@
   let basemap = $state(stored('daylight.eclipse.basemap') ?? 'streets');
   let layers = $state({ path: true, shadow: true, night: true });
   let follow = $state(false);
+  // Night shading off, or on with its twilight in bands or smooth (the globe designs' setting).
+  const night = {
+    get: () => (layers.night ? settings.globe.twilightStyle : 'off'),
+    set: (v: string) => {
+      layers.night = v !== 'off';
+      if (v === 'bands' || v === 'smooth') settings.globe.twilightStyle = v;
+    },
+  };
   let keyInput = $state('');
   let keyVersion = $state(0);
   const base = $derived(BASEMAPS.find((b) => b.id === basemap) ?? BASEMAPS[0]);
@@ -307,7 +315,7 @@
       placeColor={place ? app.colorOf(place) : undefined}
       {basemap}
       {keyVersion}
-      {layers}
+      layers={{ ...layers, smooth: settings.globe.twilightStyle === 'smooth' }}
       onpick={(lat, lon) => app.pickPoint(lat, lon)}
     />
     <div class="tools">
@@ -318,7 +326,11 @@
       </select>
       <label><input type="checkbox" autocomplete="off" bind:checked={layers.path} /> Path</label>
       <label><input type="checkbox" autocomplete="off" bind:checked={layers.shadow} /> Shadow now</label>
-      <label><input type="checkbox" autocomplete="off" bind:checked={layers.night} /> Night</label>
+      <select class="dl-input" bind:value={night.get, night.set} aria-label="Night shading">
+        <option value="bands">Night: twilight bands</option>
+        <option value="smooth">Night: smooth</option>
+        <option value="off">No night</option>
+      </select>
       <label><input type="checkbox" autocomplete="off" bind:checked={follow} /> Follow the shadow</label>
       {#if needsKey}
         <form

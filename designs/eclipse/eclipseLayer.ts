@@ -20,6 +20,8 @@ import { subsolarPoint } from '$core/astro/sun';
 export interface EclipseLayerOptions {
   /** Night and twilight shading. */
   night: boolean;
+  /** Twilight as one smooth fade instead of civil, nautical and astronomical bands. */
+  smooth: boolean;
   /** The whole footprint of the eclipse. */
   path: boolean;
   /** The Moon's shadow at the current time. */
@@ -41,6 +43,7 @@ const fragmentSource = /* glsl */ `#version 300 es
   uniform float u_path;
   uniform float u_shadow;
   uniform float u_night;
+  uniform float u_smooth;
   uniform float u_now;
   uniform vec3 u_sun;
   uniform vec3 u_pathColor;
@@ -87,29 +90,40 @@ const fragmentSource = /* glsl */ `#version 300 es
     float rs = ellipsoid.x;
     float rc = ellipsoid.y;
     vec4 color = vec4(0.0);
+    float aa = max(fwidth(alt), 1e-4) * 0.75;
 
-    if (u_night > 0.5) {
-      float aa = max(fwidth(alt), 1e-4) * 0.75;
-      float dark = 0.22 * (1.0 - smoothstep(-0.833 - aa, -0.833 + aa, alt))
+    float night = 0.0;
+    if (u_night > 0.5 && u_smooth > 0.5) {
+      night = 0.52 * (1.0 - smoothstep(-18.0, 0.0, alt));
+    } else if (u_night > 0.5) {
+      night = 0.22 * (1.0 - smoothstep(-0.833 - aa, -0.833 + aa, alt))
         + 0.1 * (1.0 - smoothstep(-6.0 - aa, -6.0 + aa, alt))
         + 0.1 * (1.0 - smoothstep(-12.0 - aa, -12.0 + aa, alt))
         + 0.1 * (1.0 - smoothstep(-18.0 - aa, -18.0 + aa, alt));
-      over(color, vec3(0.02, 0.04, 0.16), dark);
     }
 
+    float eclipse = 0.0;
+    float edges = 0.0;
     if (u_shadow > 0.5) {
-      Rel r = relAt(u_now, rs, rc, lon);
+      Rel r = towardsLimb(relAt(u_now, rs, rc, lon));
       float m = length(vec2(r.u, r.v));
       float ratio = (r.L1 - r.L2) / (r.L1 + r.L2);
-      // Seen until sunset, where the night shading takes over.
-      float aa = max(fwidth(alt), 0.02);
-      float up = smoothstep(-0.833 - aa, -0.833 + aa, alt);
+      // Twilight is sunlight on the air along the same line to the Sun, so the Moon dims it as
+      // much as daylight: the shadow goes on to the end of twilight (or sunset, without night).
+      float limit = u_night > 0.5 ? -18.0 : -0.833;
+      float up = smoothstep(limit - aa, limit + aa, alt);
       float cover = covered(m * (1.0 + ratio) / r.L1, ratio) * up;
-      // Eased like the globe's, so the whole partial zone shows, yet light enough to read the map under the umbra.
-      over(color, vec3(0.0, 0.0, 0.03), 0.55 * pow(max(cover, 1e-6), 0.7));
-      float edges = isoLine(m - r.L1, 0.0, 1.5) * 0.5 + isoLine(m - abs(r.L2), 0.0, 2.0) * 0.95;
-      over(color, vec3(1.0, 0.93, 0.85), edges * up);
+      // Eased like the globe's, so the whole partial zone shows, yet light enough to read the
+      // map under the umbra; no darker than full night, which then takes over without a seam.
+      eclipse = 0.52 * pow(max(cover, 1e-6), 0.7);
+      edges = (isoLine(m - r.L1, 0.0, 1.5) * 0.5 + isoLine(m - abs(r.L2), 0.0, 2.0) * 0.95) * up;
     }
+
+    // The darker of twilight and eclipse, so crossing into twilight never lightens the shadow.
+    float shade = max(night, eclipse);
+    float tint = clamp((eclipse - night) / max(eclipse, 1e-6), 0.0, 1.0);
+    over(color, mix(vec3(0.02, 0.04, 0.16), vec3(0.0, 0.0, 0.03), tint), shade);
+    over(color, vec3(1.0, 0.93, 0.85), edges);
 
     if (u_path > 0.5) {
       float t = eclGreatest;
@@ -199,7 +213,7 @@ export class EclipseLayer implements CustomLayerInterface {
   private drawn = false;
   private eclipse: { e: SolarEclipse; deltaT: number; uniforms: EclipseUniforms } | null = null;
   private time = Date.now();
-  private opts: EclipseLayerOptions = { night: true, path: true, shadow: true, dark: false };
+  private opts: EclipseLayerOptions = { night: true, smooth: false, path: true, shadow: true, dark: false };
 
   setEclipse(e: SolarEclipse | null, deltaT?: number): void {
     if (e) {
@@ -357,6 +371,7 @@ export class EclipseLayer implements CustomLayerInterface {
     gl2.uniform1f(loc('u_path'), path ? 1 : 0);
     gl2.uniform1f(loc('u_shadow'), shadow ? 1 : 0);
     gl2.uniform1f(loc('u_night'), this.opts.night ? 1 : 0);
+    gl2.uniform1f(loc('u_smooth'), this.opts.smooth ? 1 : 0);
     gl2.uniform1f(loc('u_now'), now);
     const sun = subsolarPoint(this.time);
     const sLat = sun.lat * RAD;
