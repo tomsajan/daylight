@@ -1,7 +1,9 @@
 /**
  * Place search and reverse geocoding, straight from the browser.
- * Photon (komoot, OpenStreetMap data) is built for search-as-you-type;
- * Nominatim is the fallback. Both are free public services, so requests are
+ * Photon (komoot, OpenStreetMap data) is built for search-as-you-type.
+ * Nominatim is only a fallback for searches the user explicitly asks for
+ * (pressing Enter): its usage policy forbids autocomplete and allows at most
+ * one request per second. Both are free public services, so requests are
  * kept sparse: callers should debounce, and reverse lookups are throttled.
  */
 import { formatCoordinates, makePlace, type Place } from './place';
@@ -59,7 +61,16 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function searchPlaces(query: string, signal?: AbortSignal, limit = 8): Promise<SearchResult[]> {
+export interface SearchOptions {
+  signal?: AbortSignal;
+  limit?: number;
+  /** An explicit search (Enter), not typing: may fall back to Nominatim if Photon fails. */
+  fallback?: boolean;
+}
+
+let lastNominatim = 0;
+
+export async function searchPlaces(query: string, { signal, limit = 8, fallback = false }: SearchOptions = {}): Promise<SearchResult[]> {
   const q = query.trim();
   if (q.length < 2) return [];
 
@@ -73,7 +84,11 @@ export async function searchPlaces(query: string, signal?: AbortSignal, limit = 
     );
     return data.features.map(photonToResult);
   } catch (err) {
-    if (signal?.aborted) throw err;
+    if (signal?.aborted || !fallback) throw err;
+    const wait = lastNominatim + 1100 - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    signal?.throwIfAborted();
+    lastNominatim = Date.now();
     const data = await getJson<NominatimItem[]>(
       `${NOMINATIM}/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=${limit}&accept-language=en`,
       signal,

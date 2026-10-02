@@ -29,7 +29,8 @@ A fourth, **Reference**, is the plain wiring of every shared component, for deve
 Everything is computed in the browser; there is no backend. The build is a static site that any web server or
 static host can serve. The only network requests after loading go to OpenStreetMap services
 ([Photon](https://photon.komoot.io), with [Nominatim](https://nominatim.org) as a fallback for search), for place
-search and for naming a spot clicked on the globe. Time zones are
+search and for naming a spot clicked on the globe. Nominatim is only asked when you press Enter while Photon is
+not answering, as its usage policy does not allow search-as-you-type. Time zones are
 looked up offline.
 
 ## Running locally

@@ -42,17 +42,18 @@
     timer = setTimeout(run, 350);
   }
 
-  async function run() {
+  /** explicit: the user pressed Enter, so a backup service may be asked too. */
+  async function run(explicit = false) {
     controller?.abort();
     controller = new AbortController();
     loading = true;
     try {
-      results = await searchPlaces(query, controller.signal);
+      results = await searchPlaces(query, { signal: controller.signal, fallback: explicit });
       active = results.length ? 0 : -1;
       open = true;
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        error = 'Place search is unavailable. Check your connection, or type coordinates such as 50.08, 14.44.';
+        error = explicit ? 'Place search is unavailable. Check your connection, or type coordinates such as 50.08, 14.44.' : 'Search did not answer. Press Enter to try again.';
         results = [];
       }
     } finally {
@@ -87,7 +88,7 @@
     } else if (e.key === 'Enter') {
       if (timer && query.trim().length >= 2 && !results.length) {
         clearTimeout(timer);
-        run();
+        run(true);
       } else if (results[active]) {
         // Shift+Enter adds to the comparison, mirroring the second button.
         if (e.shiftKey && oncompare) compare(results[active]);

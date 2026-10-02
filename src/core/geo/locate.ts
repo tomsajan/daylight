@@ -12,7 +12,7 @@ export async function guessHomePlace(): Promise<Place> {
   const city = tz.split('/').pop()?.replace(/_/g, ' ');
   if (city && tz.includes('/') && !tz.startsWith('Etc/')) {
     try {
-      const results = await searchPlaces(city, AbortSignal.timeout(5000), 3);
+      const results = await searchPlaces(city, { signal: AbortSignal.timeout(5000), limit: 3 });
       const best = results.find((r) => /city|town|capital|administrative/.test(r.kind)) ?? results[0];
       if (best) {
         const place = resultToPlace(best);

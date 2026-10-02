@@ -53,17 +53,18 @@
     timer = setTimeout(run, 350);
   }
 
-  async function run() {
+  /** explicit: the user pressed Enter, so a backup service may be asked too. */
+  async function run(explicit = false) {
     controller?.abort();
     controller = new AbortController();
     loading = true;
     try {
-      results = await searchPlaces(query, controller.signal);
+      results = await searchPlaces(query, { signal: controller.signal, fallback: explicit });
       active = results.length ? 0 : -1;
       open = document.activeElement === input;
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        error = 'Search is unavailable right now. Try coordinates, e.g. 50.08, 14.44';
+        error = explicit ? 'Search is unavailable right now. Try coordinates, e.g. 50.08, 14.44' : 'Search did not answer. Press Enter to try again.';
         results = [];
       }
     } finally {
@@ -91,7 +92,7 @@
     } else if (e.key === 'Enter') {
       if (timer && query.trim().length >= 2 && !results.length) {
         clearTimeout(timer);
-        run();
+        run(true);
       } else if (shown[active]) choose(shown[active], e.shiftKey || addMain);
     } else if (e.key === 'Escape') {
       open = false;
