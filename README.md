@@ -31,6 +31,11 @@ coverage contours, and the Moon's shadow moving across at the chosen time. For a
 how much of the Sun is covered, the Sun's height and direction, how far it is to the central line and the path's
 limits, and a picture of the Sun and Moon as they will look from there.
 
+The same page switches to **lunar eclipses**, every one from 1980 to 2100. Their map shows how much of the eclipse
+each place sees, the lines where the Moon rises or sets at each contact, and where the Moon is up at the chosen time;
+for a place it gives the contact times with the Moon's height at each, moonrise or moonset during the eclipse, and the
+Moon's path through the Earth's shadow as seen from there.
+
 **Reference** is the plain wiring of every shared component, for development.
 
 ## How it works
@@ -78,7 +83,7 @@ src/core/            shared engine, used by every design
   time/              time scales (local, UTC, mean & apparent solar time) and formatting
   geo/               places, time zone lookup, geocoding, "where am I"
   eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits,
-                     and the same maths in GLSL for drawing them per pixel
+                     and the same maths in GLSL for drawing them per pixel; lunar eclipses 1980-2100
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
   globe/             Three.js globe renderer + Svelte wrapper
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
@@ -103,13 +108,19 @@ within seconds). Not modelled: the mountains and valleys on the Moon's limb, whi
 and the path limits by up to a kilometre or two. For eclipses after the last measured ΔT, the Earth's rotation is
 extrapolated, which shifts times by seconds and the path east or west by about half a kilometre per second.
 
+Lunar eclipses use NASA's contact times and the Moon's place from Espenak and Meeus's elements. The Earth's shadow is
+centred on the point opposite the Sun (astronomy-engine, with aberration) and sized to NASA's magnitudes; contacts
+worked out from that geometry agree with NASA's within 20 seconds, and the Moon's altitude agrees with
+astronomy-engine within 0.05°.
+
 ## Credits
 
 - Earth imagery: NASA Blue Marble and Black Marble (public domain), as packaged by
   [three-globe](https://github.com/vasturiano/three-globe).
 - Place search: data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, via Photon by komoot and Nominatim.
 - Time zones: [@photostructure/tz-lookup](https://github.com/photostructure/tz-lookup).
-- Eclipse predictions by Fred Espenak, NASA's GSFC ([eclipse.gsfc.nasa.gov](https://eclipse.gsfc.nasa.gov)); ΔT from
+- Eclipse predictions by Fred Espenak (lunar eclipse elements with Jean Meeus), NASA's GSFC
+  ([eclipse.gsfc.nasa.gov](https://eclipse.gsfc.nasa.gov)); ΔT from
   the [IERS](https://www.iers.org). `node scripts/fetch-eclipses.mjs` downloads both again.
 - Eclipse maps: [MapLibre GL JS](https://maplibre.org); tiles from [OpenFreeMap](https://openfreemap.org)
   (© [OpenMapTiles](https://openmaptiles.org), data © OpenStreetMap contributors),

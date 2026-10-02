@@ -106,22 +106,22 @@ export function elementsAt(e: SolarEclipse, t: number): ElementsAt {
 }
 
 /** Element time t (hours from t0, TT) to Unix milliseconds (UT), for a given ΔT. */
-export function elementTimeToMs(e: SolarEclipse, t: number, dT: number): number {
+export function elementTimeToMs(e: Pick<SolarEclipse, 'jd0'>, t: number, dT: number): number {
   return (e.jd0 - JD_UNIX_EPOCH) * 86_400_000 + t * MS_PER_HOUR - dT * 1000;
 }
 
 /** Unix milliseconds (UT) to element time t, for a given ΔT. */
-export function msToElementTime(e: SolarEclipse, ms: number, dT: number): number {
+export function msToElementTime(e: Pick<SolarEclipse, 'jd0'>, ms: number, dT: number): number {
   return (ms + dT * 1000 - (e.jd0 - JD_UNIX_EPOCH) * 86_400_000) / MS_PER_HOUR;
 }
 
 /** Instant of greatest eclipse as Unix milliseconds (UT). */
-export function greatestEclipseMs(e: SolarEclipse, dT = eclipseDeltaT(e)): number {
+export function greatestEclipseMs(e: Pick<SolarEclipse, 'jdGreatest'>, dT = eclipseDeltaT(e)): number {
   return (e.jdGreatest - JD_UNIX_EPOCH) * 86_400_000 - dT * 1000;
 }
 
 /** ΔT for an eclipse: measured where available, extrapolated otherwise. */
-export function eclipseDeltaT(e: SolarEclipse): number {
+export function eclipseDeltaT(e: Pick<SolarEclipse, 'jdGreatest'>): number {
   return deltaT((e.jdGreatest - JD_UNIX_EPOCH) * 86_400_000);
 }
 

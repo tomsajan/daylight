@@ -1,22 +1,35 @@
 <!--
   The zoomable map: a background map (see basemaps.ts) with the eclipse drawn
   over it by EclipseLayer, a marker for the chosen place, and a readout of the
-  eclipse under the pointer.
+  eclipse under the pointer. For a lunar eclipse, labels name the curves where
+  the Moon rises or sets at each contact.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Map as MapLibreMap, Marker, NavigationControl, ScaleControl, setWorkerUrl, type LngLatBoundsLike } from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-  import { localCircumstances, type SolarEclipse } from '$core/eclipse';
+  import { app } from '$core/state/app.svelte';
+  import { settings } from '$core/state/settings.svelte';
+  import { formatClock } from '$core/time/format';
+  import {
+    localCircumstances,
+    lunarContacts,
+    lunarLocalCircumstances,
+    lunarSpan,
+    shadowView,
+    subLunarPoint,
+    type LunarEclipse,
+    type SolarEclipse,
+  } from '$core/eclipse';
   import { EclipseLayer, type EclipseLayerOptions } from './eclipseLayer';
   import { BASEMAPS, mapyKey } from './basemaps';
-  import { describeLocal } from './describe';
+  import { describeLocal, describeLunar } from './describe';
 
   setWorkerUrl(workerUrl);
 
   interface Props {
-    eclipse: SolarEclipse | null;
+    eclipse: SolarEclipse | LunarEclipse | null;
     time: number;
     place: { lat: number; lon: number } | null;
     placeColor?: string;
@@ -64,8 +77,12 @@
       cancelAnimationFrame(pending);
       pending = requestAnimationFrame(() => {
         if (!eclipse) return (hover = null);
-        const local = localCircumstances(eclipse, { lat: ev.lngLat.lat, lon: ev.lngLat.lng });
-        hover = { x: ev.point.x, y: ev.point.y, text: describeLocal(local).short };
+        const where = { lat: ev.lngLat.lat, lon: ev.lngLat.lng };
+        const text =
+          'umbra' in eclipse
+            ? describeLunar(lunarLocalCircumstances(eclipse, where), (ms) => formatClock(ms, app.scale, settings.hourCycle)).short
+            : describeLocal(localCircumstances(eclipse, where)).short;
+        hover = { x: ev.point.x, y: ev.point.y, text };
       });
     });
     m.on('mouseout', () => {
@@ -105,6 +122,48 @@
     }
     if (!marker) marker = new Marker({ color: placeColor }).setLngLat([place.lon, place.lat]).addTo(map);
     else marker.setLngLat([place.lon, place.lat]);
+  });
+
+  // Lunar eclipse: each contact's curve is the Moon's horizon at that instant, a circle 90° from
+  // where the Moon is overhead; labelled where it crosses the equator, on the rising and setting side.
+  let labels: Marker[] = [];
+  $effect(() => {
+    for (const l of labels) l.remove();
+    labels = [];
+    if (!map || !eclipse || !('umbra' in eclipse) || !layers.path) return;
+    for (const c of lunarContacts(eclipse)) {
+      if (c.name === 'Greatest') continue;
+      const p = subLunarPoint(eclipse, c.time);
+      for (const side of [-90, 90]) {
+        const el = document.createElement('div');
+        el.className = 'contact-label';
+        el.textContent = c.name;
+        el.title = `The Moon ${side < 0 ? 'rises' : 'sets'} along this line at ${c.name}`;
+        labels.push(new Marker({ element: el, opacityWhenCovered: '0' }).setLngLat([p.lon + side, 0]).addTo(map));
+      }
+    }
+  });
+
+  // Lunar eclipse: the Moon where it is overhead, coloured as it looks.
+  let moonMarker: Marker | undefined;
+  $effect(() => {
+    const lunar = eclipse && 'umbra' in eclipse ? eclipse : null;
+    const span = lunar ? lunarSpan(lunar) : null;
+    if (!map || !lunar || !span || !layers.shadow || time < span.start || time > span.end) {
+      moonMarker?.remove();
+      moonMarker = undefined;
+      return;
+    }
+    const p = subLunarPoint(lunar, time);
+    const v = shadowView(lunar, time);
+    if (!moonMarker) {
+      const el = document.createElement('div');
+      el.className = 'moon-marker';
+      el.title = 'The Moon is overhead here';
+      moonMarker = new Marker({ element: el, opacityWhenCovered: '0' }).setLngLat([p.lon, p.lat]).addTo(map);
+    }
+    moonMarker.getElement().dataset.phase = v.umbralMagnitude >= 1 ? 'total' : v.umbralMagnitude > 0 ? 'partial' : 'penumbral';
+    moonMarker.setLngLat([p.lon, p.lat]);
   });
 
   // A view asked for before the map exists is applied once it does.
@@ -152,6 +211,29 @@
   .mapy-logo img {
     display: block;
     height: 28px;
+  }
+  :global(.moon-marker) {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #f1ead8;
+    border: 2px solid rgb(255 255 255 / 0.85);
+    box-shadow: 0 0 8px rgb(0 0 0 / 0.5);
+  }
+  :global(.moon-marker[data-phase='partial']) {
+    background: linear-gradient(110deg, #f1ead8 45%, #9a3a18 55%);
+  }
+  :global(.moon-marker[data-phase='total']) {
+    background: #a8401c;
+    box-shadow: 0 0 10px rgb(220 90 40 / 0.8);
+  }
+  :global(.contact-label) {
+    font: 600 11px/1 system-ui, sans-serif;
+    color: #fff;
+    background: rgb(150 50 15 / 0.85);
+    padding: 2px 4px;
+    border-radius: 4px;
+    pointer-events: auto;
   }
   .hover {
     position: absolute;

@@ -1,8 +1,16 @@
 /** Words for eclipses, shared by the panels and the map readout. */
 
-import type { EclipseType, LocalSolarEclipse } from '$core/eclipse';
+import {
+  lunarContacts,
+  type EclipseType,
+  type LocalLunarEclipse,
+  type LocalSolarEclipse,
+  type LunarEclipse,
+  type LunarEclipseType,
+} from '$core/eclipse';
 
 export const TYPE_NAMES: Record<EclipseType, string> = { T: 'Total', A: 'Annular', H: 'Hybrid', P: 'Partial' };
+export const LUNAR_TYPE_NAMES: Record<LunarEclipseType, string> = { T: 'Total', P: 'Partial', N: 'Penumbral' };
 
 /** "2m 21.4s", or "48.0s" under a minute. */
 export function formatSeconds(s: number, digits = 1): string {
@@ -37,4 +45,40 @@ export function describeLocal(l: LocalSolarEclipse): { short: string; headline: 
     };
   }
   return { short: `Partial, ${covered}${sunDown ? ', sun low' : ''}`, headline: `Partial eclipse: up to ${covered}${sunDown}` };
+}
+
+/** The phase of a lunar eclipse at an instant: "totality", "the partial phase", … */
+export function lunarPhaseName(e: LunarEclipse, ms: number): string {
+  const at = new Map<string, number>(lunarContacts(e).map((c) => [c.name, c.time]));
+  const after = (name: string) => at.has(name) && ms >= at.get(name)!;
+  if (after('U3') && !after('U4')) return 'the partial phase';
+  if (after('U2') && !after('U3')) return 'totality';
+  if (after('U1') && !after('U2')) return 'the partial phase';
+  if (after('U4') || !at.has('U1') || !after('U1')) return 'the penumbral phase';
+  return 'the eclipse';
+}
+
+/** A lunar eclipse from one place, in words; clock() writes a time the way the page shows it. */
+export function describeLunar(l: LocalLunarEclipse, clock: (ms: number) => string): { short: string; headline: string } {
+  const e = l.eclipse;
+  if (!l.visible) return { short: 'Not seen: Moon below the horizon', headline: 'Not seen: the Moon is below the horizon throughout' };
+  const greatest = l.contacts.find((c) => c.name === 'Greatest')!;
+  if (l.seen >= 1) {
+    const high = greatest.visible ? `, the Moon ${greatest.altitude.toFixed(0)}° up at greatest eclipse` : '';
+    return { short: 'The whole eclipse seen', headline: `The whole eclipse is seen${high}` };
+  }
+  const parts: string[] = [];
+  const short: string[] = [];
+  if (l.moonrise) {
+    parts.push(`the Moon rises at ${clock(l.moonrise.time)}, during ${lunarPhaseName(e, l.moonrise.time)}`);
+    short.push(`Moonrise during ${lunarPhaseName(e, l.moonrise.time)}`);
+  }
+  if (l.moonset) {
+    parts.push(`the Moon sets at ${clock(l.moonset.time)}, during ${lunarPhaseName(e, l.moonset.time)}`);
+    short.push(`Moonset during ${lunarPhaseName(e, l.moonset.time)}`);
+  }
+  const t = l.totalitySeen;
+  const totality =
+    t === undefined ? '' : t <= 0 ? '. Totality is not seen' : t >= 1 ? '. All of totality is seen' : `. ${percent(t)} of totality is seen`;
+  return { short: short.join(', '), headline: `Seen in part: ${parts.join('; ')}${totality}` };
 }

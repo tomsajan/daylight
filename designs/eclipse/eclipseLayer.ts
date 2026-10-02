@@ -1,9 +1,11 @@
 /**
- * A MapLibre custom layer that draws a solar eclipse pixel by pixel, the same
- * way the globe does: night, the Moon's shadow at the current time, and the
- * eclipse's whole footprint (path of totality or annularity, its limits and
- * central line, coverage contours). Worked out per pixel, the lines stay exact
- * at any zoom, down to street level.
+ * A MapLibre custom layer that draws an eclipse pixel by pixel, the same way
+ * the globe does. For a solar eclipse: night, the Moon's shadow at the current
+ * time, and the eclipse's whole footprint (path of totality or annularity, its
+ * limits and central line, coverage contours). For a lunar eclipse: where the
+ * Moon is up now, how much of the eclipse each place sees, and where the Moon
+ * rises or sets at each contact. Worked out per pixel, the lines stay exact at
+ * any zoom, down to street level.
  *
  * Drawn tile by tile over the tiles MapLibre shows, so it follows the map on
  * the globe and in the flat (Mercator) view alike. The tiles are drawn with a
@@ -14,6 +16,7 @@
 
 import { createTileMesh, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
 import { eclipseDeltaT, msToElementTime, type SolarEclipse } from '$core/eclipse/elements';
+import { mainPhase, moonHorizon, shadowView, type LunarEclipse } from '$core/eclipse/lunar';
 import { ECLIPSE_GLSL, eclipseUniforms, type EclipseUniforms } from '$core/eclipse/glsl';
 import { subsolarPoint } from '$core/astro/sun';
 
@@ -22,9 +25,9 @@ export interface EclipseLayerOptions {
   night: boolean;
   /** Twilight as one smooth fade instead of civil, nautical and astronomical bands. */
   smooth: boolean;
-  /** The whole footprint of the eclipse. */
+  /** The whole footprint of the eclipse; for a lunar eclipse, where it is seen. */
   path: boolean;
-  /** The Moon's shadow at the current time. */
+  /** The Moon's shadow at the current time; for a lunar eclipse, where the Moon is up. */
   shadow: boolean;
   /** Colours for a dark background map. */
   dark: boolean;
@@ -34,6 +37,8 @@ const EXTENT = 8192;
 const RAD = Math.PI / 180;
 /** From this zoom on, latitudes come from a series around the tile's centre, for precision. */
 const SERIES_ZOOM = 6;
+/** Sidereal degrees the Earth turns per hour of UT. */
+const SIDEREAL_DEG_PER_HOUR = 15 * 1.00273791;
 
 const fragmentSource = /* glsl */ `#version 300 es
   precision highp float;
@@ -56,6 +61,29 @@ const fragmentSource = /* glsl */ `#version 300 es
   uniform vec4 u_lat;
   uniform vec2 u_mercY;
   ${ECLIPSE_GLSL}
+
+  // Lunar eclipse (u_lunar = 1): the Moon's right ascension and declination as quadratics in
+  // element time, the Greenwich sidereal angle (ΔT applied) at t = 0 and per hour, the sine of
+  // its parallax and the altitude at which it rises. Contacts P1 … P4 in element time, −1000
+  // for one the eclipse does not have.
+  uniform float u_lunar;
+  uniform vec3 u_moonRa;
+  uniform vec3 u_moonDec;
+  uniform vec2 u_sidereal;
+  uniform float u_sinParallax;
+  uniform float u_moonHorizon;
+  uniform float u_contacts[7];
+  uniform vec2 u_mainPhase;
+  uniform vec3 u_moonTint;
+
+  // How far the Moon is above the altitude where it rises (degrees, negative below) at time t.
+  float moonUp(float t, float lat, float lon) {
+    float ra = u_moonRa.x + t * (u_moonRa.y + t * u_moonRa.z);
+    float dec = radians(u_moonDec.x + t * (u_moonDec.y + t * u_moonDec.z));
+    float h = radians(u_sidereal.x + t * u_sidereal.y - ra + lon);
+    float a = asin(clamp(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(h), -1.0, 1.0));
+    return degrees(a - asin(u_sinParallax * cos(a))) - u_moonHorizon;
+  }
 
   float isoLine(float value, float level, float width) {
     float w = fwidth(value) * width;
@@ -100,6 +128,39 @@ const fragmentSource = /* glsl */ `#version 300 es
         + 0.1 * (1.0 - smoothstep(-6.0 - aa, -6.0 + aa, alt))
         + 0.1 * (1.0 - smoothstep(-12.0 - aa, -12.0 + aa, alt))
         + 0.1 * (1.0 - smoothstep(-18.0 - aa, -18.0 + aa, alt));
+    }
+
+    if (u_lunar > 0.5) {
+      over(color, vec3(0.02, 0.04, 0.16), night);
+      if (u_path > 0.5) {
+        // Share of the main phase with the Moon up: its altitude sampled through the phase, and
+        // where it crosses the horizon between two samples, the crossing found on the straight line.
+        const int N = 16;
+        float dt = (u_mainPhase.y - u_mainPhase.x) / float(N);
+        float prev = moonUp(u_mainPhase.x, lat, lon);
+        float up = 0.0;
+        for (int i = 1; i <= N; i++) {
+          float next = moonUp(u_mainPhase.x + dt * float(i), lat, lon);
+          if (prev > 0.0 && next > 0.0) up += 1.0;
+          else if (prev > 0.0 || next > 0.0) up += max(prev, next) / abs(next - prev);
+          prev = next;
+        }
+        over(color, vec3(0.06, 0.06, 0.09), 0.45 * (1.0 - up / float(N)));
+        // Where the Moon rises or sets at each contact: faint for the penumbra, bold for totality.
+        float lines = 0.0;
+        for (int k = 0; k < 7; k++) {
+          if (k == 3 || u_contacts[k] < -100.0) continue;
+          float weight = (k == 0 || k == 6) ? 0.45 : (k == 1 || k == 5) ? 0.75 : 1.0;
+          lines = max(lines, isoLine(moonUp(u_contacts[k], lat, lon), 0.0, k == 2 || k == 4 ? 2.0 : 1.5) * weight);
+        }
+        over(color, u_lineColor, lines);
+      }
+      if (u_shadow > 0.5) {
+        // The Moon's horizon now: inside it the eclipse can be seen at this moment.
+        over(color, u_moonTint, isoLine(moonUp(u_now, lat, lon), 0.0, 2.5) * 0.95);
+      }
+      fragColor = color;
+      return;
     }
 
     float eclipse = 0.0;
@@ -212,15 +273,18 @@ export class EclipseLayer implements CustomLayerInterface {
   private target: Target | null = null;
   private drawn = false;
   private eclipse: { e: SolarEclipse; deltaT: number; uniforms: EclipseUniforms } | null = null;
+  private lunar: { e: LunarEclipse; deltaT: number } | null = null;
   private time = Date.now();
   private opts: EclipseLayerOptions = { night: true, smooth: false, path: true, shadow: true, dark: false };
 
-  setEclipse(e: SolarEclipse | null, deltaT?: number): void {
-    if (e) {
+  setEclipse(e: SolarEclipse | LunarEclipse | null, deltaT?: number): void {
+    this.eclipse = null;
+    this.lunar = null;
+    if (e && 'umbra' in e) {
+      this.lunar = { e, deltaT: deltaT ?? eclipseDeltaT(e) };
+    } else if (e) {
       const dT = deltaT ?? eclipseDeltaT(e);
       this.eclipse = { e, deltaT: dT, uniforms: eclipseUniforms(e, dT) };
-    } else {
-      this.eclipse = null;
     }
     this.map?.triggerRepaint();
   }
@@ -339,9 +403,17 @@ export class EclipseLayer implements CustomLayerInterface {
     if (!map) return;
     const gl2 = gl as WebGL2RenderingContext;
     const e = this.eclipse;
-    const now = e ? msToElementTime(e.e, this.time, e.deltaT) : 0;
-    const shadow = !!e && this.opts.shadow && now >= e.e.range[0] && now <= e.e.range[1];
-    const path = !!e && this.opts.path;
+    const lunar = this.lunar;
+    let now = 0;
+    let shadow = false;
+    if (e) {
+      now = msToElementTime(e.e, this.time, e.deltaT);
+      shadow = this.opts.shadow && now >= e.e.range[0] && now <= e.e.range[1];
+    } else if (lunar) {
+      now = msToElementTime(lunar.e, this.time, lunar.deltaT);
+      shadow = this.opts.shadow && now >= lunar.e.contacts[0]! && now <= lunar.e.contacts[6]!;
+    }
+    const path = !!(e || lunar) && this.opts.path;
     if (!shadow && !path && !this.opts.night) return;
 
     const target = this.renderTarget(gl2);
@@ -367,6 +439,21 @@ export class EclipseLayer implements CustomLayerInterface {
         else if (value.length === 3) gl2.uniform3fv(l, value);
         else gl2.uniform4fv(l, value);
       }
+    }
+    gl2.uniform1f(loc('u_lunar'), lunar ? 1 : 0);
+    if (lunar) {
+      const l = lunar.e;
+      gl2.uniform3fv(loc('u_moonRa'), l.ra);
+      gl2.uniform3fv(loc('u_moonDec'), l.dec);
+      gl2.uniform2f(loc('u_sidereal'), 15 * l.gst - (lunar.deltaT / 3600) * SIDEREAL_DEG_PER_HOUR, SIDEREAL_DEG_PER_HOUR);
+      gl2.uniform1f(loc('u_sinParallax'), Math.sin(l.parallax * RAD));
+      gl2.uniform1f(loc('u_moonHorizon'), moonHorizon(l));
+      gl2.uniform1fv(loc('u_contacts'), l.contacts.map((t) => t ?? -1000));
+      gl2.uniform2fv(loc('u_mainPhase'), mainPhase(l));
+      // The Moon's colour: pale in the penumbra, orange once the umbra bites, red in totality.
+      const v = shadowView(l, this.time, lunar.deltaT);
+      const tint = v.umbralMagnitude >= 1 ? [0.9, 0.22, 0.1] : v.umbralMagnitude > 0 ? [1.0, 0.55, 0.2] : [1.0, 0.92, 0.75];
+      gl2.uniform3fv(loc('u_moonTint'), tint);
     }
     gl2.uniform1f(loc('u_path'), path ? 1 : 0);
     gl2.uniform1f(loc('u_shadow'), shadow ? 1 : 0);

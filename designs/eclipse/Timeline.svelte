@@ -1,10 +1,11 @@
 <!--
-  The eclipse from first to last contact anywhere on Earth: a slider for the
-  time with the place's own contacts marked, and play controls.
+  The eclipse from first to last contact anywhere on Earth: the clock, a slider
+  for the time with the contacts marked, and play controls.
 -->
 <script lang="ts">
   import { app } from '$core/state/app.svelte';
-  import { formatSpeed } from '$core/time/format';
+  import { settings } from '$core/state/settings.svelte';
+  import { formatClock, formatDate, formatSpeed } from '$core/time/format';
 
   interface Mark {
     time: number;
@@ -20,8 +21,12 @@
   let { start, end, marks }: Props = $props();
 
   const SPEED_CHOICES = [1, 10, 60, 300, 600, 1800];
+  const utc = (ms: number) => new Date(Math.round(ms / 1000) * 1000).toISOString().slice(11, 19);
 
-  const pos = (t: number) => `${(((t - start) / (end - start)) * 100).toFixed(3)}%`;
+  const fraction = (t: number) => (t - start) / (end - start);
+  const pos = (t: number) => `${(fraction(t) * 100).toFixed(3)}%`;
+  /** Centred on its time, but kept inside the track at the ends. */
+  const anchor = (t: number) => (fraction(t) < 0.04 ? 15 : fraction(t) > 0.96 ? 85 : 50);
   const inside = $derived(app.time >= start && app.time <= end);
 
   function toggle() {
@@ -32,6 +37,10 @@
 </script>
 
 <div class="timeline">
+  <div class="clock">
+    <strong>{formatClock(app.time, app.scale, settings.hourCycle, true)}</strong>
+    <span>{formatDate(app.date, 'medium')} · {utc(app.time)} UT</span>
+  </div>
   <div class="track">
     <input
       type="range"
@@ -46,7 +55,7 @@
       aria-label="Time during the eclipse"
     />
     {#each marks as m (m.short)}
-      <button class="mark" style:left={pos(m.time)} title={m.label} onclick={() => app.setTime(m.time)}>{m.short}</button>
+      <button class="mark" style:left={pos(m.time)} style:transform="translateX(-{anchor(m.time)}%)" style:--tick="{anchor(m.time)}%" title={m.label} onclick={() => app.setTime(m.time)}>{m.short}</button>
     {/each}
   </div>
   <div class="controls">
@@ -66,6 +75,15 @@
   .timeline {
     display: grid;
     gap: 6px;
+  }
+  .clock strong {
+    font-size: 1.6rem;
+    font-variant-numeric: tabular-nums;
+    margin-right: 8px;
+  }
+  .clock span {
+    color: var(--muted);
+    font-size: 13px;
   }
   .track {
     position: relative;
@@ -95,7 +113,7 @@
   .mark::before {
     content: '';
     position: absolute;
-    left: 50%;
+    left: var(--tick, 50%);
     top: -6px;
     height: 5px;
     border-left: 1px solid currentColor;

@@ -2,6 +2,8 @@
 // Downloads the data behind the eclipse engine and writes it as compact JSON:
 //
 //   src/core/eclipse/data/solar-eclipses.json   Besselian elements of every solar eclipse, 1980-2100
+//   src/core/eclipse/data/lunar-eclipses.json   every lunar eclipse, 1980-2100: contacts, the Moon's path
+//                                               through the Earth's shadow, and its place in the sky
 //   src/core/eclipse/data/delta-t.json          measured ΔT (TT - UT1), monthly since 1962
 //
 // Sources:
@@ -16,6 +18,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AstroTime, Body, EquatorFromVector, GeoVector, Rotation_EQJ_EQD, RotateVector } from 'astronomy-engine';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = join(ROOT, '.cache/eclipses');
@@ -221,6 +224,158 @@ async function deltaT() {
   return { start: first, step: 1 / 12, values };
 }
 
+
+// ---------------------------------------------------------------- lunar eclipses
+
+/** Rows of NASA's lunar eclipse catalog: date, type, Saros, gamma and magnitudes. */
+async function lunarCatalog() {
+  const rows = [];
+  for (const [file, range] of [['lecat1901.html', '1901-2000'], ['lecat2001.html', '2001-2100']]) {
+    const text = plain(await cached(file, `${NASA}/LEcat5/LE${range}.html`));
+    // 09706  2025 Mar 14  06:59:56     75    311  123   T   -p   0.3484  2.2595  1.1784  362.6  218.3   65.4    3N  102W
+    const re =
+      /^\s*\d{5}\s+(\d{4}) (\w{3}) (\d{2})\s+\d\d:\d\d:\d\d\s+-?\d+\s+-?\d+\s+(\d+)\s+([TPN][a-z+-]?)\s+\S+\s+(-?\d\.\d+)\s+(-?\d\.\d+)\s+(-?\d\.\d+)\s/gm;
+    for (const m of text.matchAll(re)) {
+      const year = Number(m[1]);
+      if (year < FIRST_YEAR || year > LAST_YEAR) continue;
+      rows.push({
+        id: `${year}-${String(MONTHS.indexOf(m[2]) + 1).padStart(2, '0')}-${m[3]}`,
+        saros: Number(m[4]),
+        type: m[5][0],
+        typeCode: m[5],
+        gamma: Number(m[6]),
+        penumbralMagnitude: Number(m[7]),
+        umbralMagnitude: Number(m[8]),
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * The elements of NASA's Javascript Lunar Eclipse Explorer (Espenak and Meeus), by date: per
+ * eclipse 22 numbers, see lunarEclipse() for their meaning.
+ */
+async function lunarElements() {
+  const byDate = new Map();
+  for (const period of ['LE1901', 'LE2001']) {
+    const text = await cached(`${period}.js`, `${NASA}/JLEX/${period}.js`);
+    for (const block of text.split(/^\/\/ (?=\d{4}\s+\d+\s+\d+\s*$)/m).slice(1)) {
+      const [date, ...lines] = block.split('\n');
+      const [y, mo, d] = date.trim().split(/\s+/).map(Number);
+      const numbers = lines.join(' ').match(/-?\d+\.\d+(?:e-?\d+)?|-?\d+(?=\s*,)/g).map(Number).slice(0, 22);
+      byDate.set(`${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`, numbers);
+    }
+  }
+  return byDate;
+}
+
+/** Geocentric apparent right ascension and declination of the Sun (degrees) at a Julian Day (TT). */
+function sunAt(jdTT, aberration) {
+  const time = AstroTime.FromTerrestrialTime(jdTT - 2451545);
+  const v = RotateVector(Rotation_EQJ_EQD(time), GeoVector(Body.Sun, time, aberration));
+  const eq = EquatorFromVector(v);
+  return { ra: eq.ra * 15, dec: eq.dec };
+}
+
+/** Least-squares polynomial of a degree through (t, v) samples. */
+function fit(ts, vs, degree) {
+  const n = degree + 1;
+  const a = Array.from({ length: n }, () => new Array(n + 1).fill(0));
+  ts.forEach((t, k) => {
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) a[i][j] += t ** (i + j);
+      a[i][n] += vs[k] * t ** i;
+    }
+  });
+  for (let i = 0; i < n; i++) {
+    for (let r = i + 1; r < n; r++) {
+      const f = a[r][i] / a[i][i];
+      for (let c = i; c <= n; c++) a[r][c] -= f * a[i][c];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let s = a[i][n];
+    for (let j = i + 1; j < n; j++) s -= a[i][j] * x[j];
+    x[i] = s / a[i][i];
+  }
+  return x;
+}
+
+const RAD = Math.PI / 180;
+
+/** The Moon (ra, dec) relative to the shadow axis (ra, dec): east and north, degrees on a tangent plane. */
+function offset(moon, axis) {
+  const [a, d, a0, d0] = [moon.ra * RAD, moon.dec * RAD, axis.ra * RAD, axis.dec * RAD];
+  const cosc = Math.sin(d0) * Math.sin(d) + Math.cos(d0) * Math.cos(d) * Math.cos(a - a0);
+  return {
+    x: (Math.cos(d) * Math.sin(a - a0)) / cosc / RAD,
+    y: (Math.cos(d0) * Math.sin(d) - Math.sin(d0) * Math.cos(d) * Math.cos(a - a0)) / cosc / RAD,
+  };
+}
+
+/**
+ * One lunar eclipse from NASA's elements and catalog row. The elements give, at t hours from
+ * t0 (TT): the contacts, the Moon's right ascension and declination, its parallax and
+ * semidiameter, and Greenwich sidereal time. The Earth's shadow is not in them: its axis is
+ * taken from the Sun's place (astronomy-engine), its radii from NASA's magnitudes, so the Moon
+ * passes through it as deep as NASA has it.
+ */
+function lunarEclipse(row, el) {
+  const [jdGreatest, t0, deltaT, , , , gst, parallax, semidiameter, ...rest] = el;
+  const contacts = rest.slice(0, 7).map((t, i) => (i !== 3 && t === 0 ? null : t));
+  const [ra, dec] = [rest.slice(7, 10), rest.slice(10, 13)];
+  const mid = contacts[3];
+  const jd0 = jdGreatest - mid / 24;
+  const poly = (c, t) => c[0] + t * (c[1] + t * c[2]);
+  const start = contacts[0] - 0.5;
+  const end = contacts[6] + 0.5;
+  const ts = [];
+  const xs = [];
+  const ys = [];
+  for (let t = start; t <= end + 1e-9; t += (end - start) / 40) {
+    const sun = sunAt(jd0 + t / 24, true);
+    const o = offset({ ra: poly(ra, t), dec: poly(dec, t) }, { ra: sun.ra + 180, dec: -sun.dec });
+    ts.push(t);
+    xs.push(o.x);
+    ys.push(o.y);
+  }
+  const x = fit(ts, xs, 3);
+  const y = fit(ts, ys, 3);
+  const at = (t) => Math.hypot(poly3(x, t), poly3(y, t));
+  // NASA's magnitudes at its greatest eclipse: how far the shadow's edges reach across the Moon.
+  const s0 = at(mid);
+  const umbra = s0 + (2 * row.umbralMagnitude - 1) * semidiameter;
+  const penumbra = s0 + (2 * row.penumbralMagnitude - 1) * semidiameter;
+  return {
+    id: row.id,
+    type: row.type,
+    typeCode: row.typeCode,
+    saros: row.saros,
+    gamma: row.gamma,
+    penumbralMagnitude: row.penumbralMagnitude,
+    umbralMagnitude: row.umbralMagnitude,
+    deltaT,
+    jdGreatest,
+    jd0: round(jd0, 6),
+    contacts,
+    gst,
+    parallax,
+    semidiameter,
+    ra,
+    dec,
+    x: x.map((v) => round(v, 7)),
+    y: y.map((v) => round(v, 7)),
+    penumbra: round(penumbra, 6),
+    umbra: round(umbra, 6),
+  };
+}
+
+function poly3(c, t) {
+  return c[0] + t * (c[1] + t * (c[2] + t * c[3]));
+}
+
 // ---------------------------------------------------------------- main
 
 const rows = await catalog();
@@ -234,6 +389,15 @@ for (const row of rows) {
 await mkdir(OUT, { recursive: true });
 const credit = 'Eclipse Predictions by Fred Espenak, NASA\'s GSFC';
 await writeFile(join(OUT, 'solar-eclipses.json'), JSON.stringify({ credit, eclipses }) + '\n');
+const lunarRows = await lunarCatalog();
+const elements = await lunarElements();
+const lunar = lunarRows.map((row) => {
+  const el = elements.get(row.id);
+  if (!el) throw new Error(`no lunar elements for ${row.id}`);
+  return lunarEclipse(row, el);
+});
+await writeFile(join(OUT, 'lunar-eclipses.json'), JSON.stringify({ credit, eclipses: lunar }) + '\n');
+console.log(`wrote ${lunar.length} lunar eclipses`);
 const dt = await deltaT();
 await writeFile(
   join(OUT, 'delta-t.json'),

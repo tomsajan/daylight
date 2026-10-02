@@ -1,0 +1,102 @@
+/* The panel's text, tables and links, shared by the solar and lunar details. */
+
+.app h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+.app h2 span {
+  display: block;
+  font-weight: normal;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.app h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.app h3 small {
+  font-weight: normal;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.app section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.app dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+.app dt {
+  color: var(--muted);
+}
+.app dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.app .link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+.app .now {
+  display: grid;
+  gap: 10px;
+}
+.app .muted,
+.app .note {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.app .headline {
+  margin: 4px 0;
+  font-weight: 600;
+}
+.app .distances {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.app table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.app th,
+.app td {
+  text-align: right;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.app th:first-child,
+.app td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+.app th {
+  color: var(--muted);
+  font-weight: normal;
+}
+.app tbody tr {
+  cursor: pointer;
+}
+.app tbody tr:hover,
+.app tr.current {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.app tr.below {
+  color: var(--muted);
+}
+.app footer p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
