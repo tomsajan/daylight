@@ -66,6 +66,7 @@ src/core/            shared engine, used by every design
   astro/             sun position (NOAA/Meeus) and daily light: sunrise, sunset, twilights, polar day/night
   time/              time scales (local, UTC, mean & apparent solar time) and formatting
   geo/               places, time zone lookup, geocoding, "where am I"
+  eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
   globe/             Three.js globe renderer + Svelte wrapper
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
@@ -90,6 +91,8 @@ altitude through each day rather than with a closed-form formula, so polar day, 
   [three-globe](https://github.com/vasturiano/three-globe).
 - Place search: data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, via Photon by komoot and Nominatim.
 - Time zones: [@photostructure/tz-lookup](https://github.com/photostructure/tz-lookup).
+- Eclipse predictions by Fred Espenak, NASA's GSFC ([eclipse.gsfc.nasa.gov](https://eclipse.gsfc.nasa.gov)); ΔT from
+  the [IERS](https://www.iers.org). `node scripts/fetch-eclipses.mjs` downloads both again.
 - Built with [Svelte](https://svelte.dev), [Three.js](https://threejs.org) and [Vite](https://vite.dev).
 
 ## License

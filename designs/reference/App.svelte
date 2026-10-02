@@ -24,6 +24,7 @@
   import SettingsPanel from '$core/components/SettingsPanel.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
   import Splitter from '$core/components/Splitter.svelte';
+  import EclipsePanel from './EclipsePanel.svelte';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { LIGHT_NAMES } from '$core/astro/daylight';
   import { addDays } from '$core/time/timescale';
@@ -204,6 +205,8 @@
     </div>
   </section>
 
+  <EclipsePanel />
+
   {#if settingsOpen}
     <aside class="settings">
       <button class="dl-btn close" onclick={() => (settingsOpen = false)}>Close</button>
@@ -236,7 +239,8 @@
       'header header'
       'globe info'
       'year year'
-      'day day';
+      'day day'
+      'eclipse eclipse';
   }
   .layout[data-theme='dark'] {
     --dl-bg: #0c1020;
@@ -361,7 +365,7 @@
   @media (max-width: 760px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: 'header' 'globe' 'info' 'year' 'day';
+      grid-template-areas: 'header' 'globe' 'info' 'year' 'day' 'eclipse';
     }
     .globe {
       height: 50vh;
