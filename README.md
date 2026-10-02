@@ -3,7 +3,8 @@
 **How the days change, anywhere on Earth.**
 
 An interactive web app showing sunrise, sunset, twilight and day length through the year for any place, on a
-3D globe and charts. Live at [daylight.tomsa.xyz](https://daylight.tomsa.xyz).
+3D globe and charts, and every solar and lunar eclipse from 1980 to 2100 on a zoomable map. Live at
+[daylight.tomsa.xyz](https://daylight.tomsa.xyz).
 
 - **3D globe** with the live day/night line, twilight zones, city lights at night and the point where the sun is overhead.
 - **Year chart** in three modes: sunrise, sunset and twilight bands; hours of daylight; and the **daily change**, how
@@ -15,6 +16,8 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
 - **Compare up to six places** on the same charts.
 - **Clocks:** local time (with daylight saving), UTC, mean solar time or apparent solar (sundial) time.
 - Zoomable charts and globe, resizable panels, adjustable day and night brightness, light and dark themes.
+- **Eclipses:** solar and lunar eclipses 1980-2100 on a map you can zoom down to street level, with what each looks
+  like from any place (see below).
 - Works on phones; the whole state (places, time, speed) is in the URL, so a link shows the same view.
 
 ### Three designs of the same app
@@ -25,18 +28,42 @@ The start page lets you pick one, and each has a switcher that keeps your places
 - **Instrument:** a dense, precise console built around a comparison table.
 - **Almanac:** daylight set in type like a printed almanac, with the year chart as the centrepiece.
 
-A fourth page, **Eclipses**, is about solar eclipses rather than daylight: every solar eclipse from 1980 to 2100 on a
-map you can zoom down to street level, with the path of totality or annularity, its exact limits and central line,
-coverage contours, and the Moon's shadow moving across at the chosen time. For any place it gives the contact times,
-how much of the Sun is covered, the Sun's height and direction, how far it is to the central line and the path's
-limits, and a picture of the Sun and Moon as they will look from there.
+**Reference** is the plain wiring of every shared component, for development, including a table of the solar
+eclipses seen from the selected place and the Moon's shadow on the globe.
 
-The same page switches to **lunar eclipses**, every one from 1980 to 2100. Their map shows how much of the eclipse
-each place sees, the lines where the Moon rises or sets at each contact, and where the Moon is up at the chosen time;
-for a place it gives the contact times with the Moon's height at each, moonrise or moonset during the eclipse, and the
-Moon's path through the Earth's shadow as seen from there.
+### Eclipses
 
-**Reference** is the plain wiring of every shared component, for development.
+A fourth page, [Eclipses](https://daylight.tomsa.xyz/designs/eclipse/), is about eclipses rather than daylight. A
+switch at the top of its panel picks solar or lunar eclipses; each side has its own list, filters by type and can
+list only the eclipses seen from the chosen place. Pick a place by searching or by clicking the map.
+
+**Solar eclipses** (269, 1980-2100):
+
+- On the map: the path of totality or annularity with its exact limits and central line, contours for every 10% of
+  the Sun's diameter covered, and the Moon's shadow at the chosen time, carried on through twilight. Worked out per
+  pixel, so the lines stay sharp down to street level.
+- For a place: the contact times with the Sun's height and direction at each, sunrise or sunset during the eclipse,
+  how much of the Sun is covered, how long totality or annularity lasts, how far it is to the central line and to
+  the nearer limit, and a picture of the Sun and Moon as they will look from there.
+- Hovering over the map tells what any spot gets.
+
+**Lunar eclipses** (276, 1980-2100):
+
+- On the map: how much of the eclipse each place sees, the lines where the Moon rises or sets at each contact
+  (P1 to P4), the Moon's horizon at the chosen time, and the point under the Moon.
+- For a place: the contact times with the Moon's height and direction at each, moonrise or moonset during the
+  eclipse, how much of totality is seen, and the Moon's path through the Earth's shadow, turned to the place's sky.
+
+Both:
+
+- A timeline from the first contact anywhere to the last, with play at up to 30 minutes per second, and an option to
+  keep the shadow (or the Moon) in view as it moves.
+- Night shading in twilight bands or smooth, and several background maps: streets, light, dark, satellite and
+  Mapy.com.
+- In the sky picture, the horizon when the Sun or Moon is low; a slider sets how much the ground hides what is below
+  it.
+- The panel can be dragged wider for a bigger sky picture. A link keeps the eclipse, the place and the time, e.g.
+  [the 2027 eclipse from Luxor](https://daylight.tomsa.xyz/designs/eclipse/?p=Luxor~Egypt~25.6870~32.6390&t=2027-08-02T10:05Z#2027-08-02).
 
 ## How it works
 
@@ -71,7 +98,7 @@ npm run dev          # http://localhost:5173
 
 Other commands:
 
-- `npm test`: solar math tests
+- `npm test`: sun and eclipse tests, against astronomy-engine and NASA's tables
 - `npm run check`: type check
 - `npm run build`: static site in `dist/`; `npm run preview` serves it
 
@@ -89,6 +116,8 @@ src/core/            shared engine, used by every design
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
   components/        place search, time and speed controls, settings panel, design switcher, splitter
 designs/<name>/      one folder per design; each is its own page at /designs/<name>/
+designs/eclipse/     the Eclipses page: MapLibre map, the eclipse layer drawn per pixel, panels and sky views
+scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/
 index.html           start page listing the designs
 ```
 
