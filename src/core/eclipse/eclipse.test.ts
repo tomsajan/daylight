@@ -3,8 +3,8 @@ import * as Astronomy from 'astronomy-engine';
 import { SOLAR_ECLIPSES } from './catalog';
 import type { SolarEclipse } from './elements';
 import { deltaT, deltaTMeasured } from './deltaT';
-import { localCircumstances, phaseAt } from './local';
-import { centralLine, centralPointAt, distanceKm, greatestEclipse, limitsAt } from './path';
+import { localCircumstances, phaseAt, skyView } from './local';
+import { centralLine, centralPointAt, distanceKm, globalSpan, greatestEclipse, limitsAt, pathDistances } from './path';
 import { msToElementTime } from './elements';
 import nasaPaths from './testdata/nasa-paths.json';
 
@@ -166,5 +166,72 @@ describe('local circumstances', () => {
     const off = localCircumstances(e, { lat: centre.lat + 0.5, lon: centre.lon });
     expect(off.kind).toBe('total');
     expect(off.duration!).toBeLessThan(centre.duration!);
+  });
+});
+
+describe('sky view, against astronomy-engine', () => {
+  // Where the Moon stands against the Sun, from the two bodies' topocentric positions.
+  function expected(lat: number, lon: number, ms: number) {
+    const observer = new Astronomy.Observer(lat, lon, 0);
+    const date = new Date(ms);
+    const at = (body: Astronomy.Body) => {
+      const eq = Astronomy.Equator(body, date, observer, true, true);
+      return { ...Astronomy.Horizon(date, observer, eq.ra, eq.dec), dist: eq.dist };
+    };
+    const sun = at(Astronomy.Body.Sun);
+    const moon = at(Astronomy.Body.Moon);
+    const sunRadius = 959.63 / 3600 / sun.dist;
+    const dAz = ((moon.azimuth - sun.azimuth + 540) % 360) - 180;
+    // Facing the Sun, a larger azimuth is to the right.
+    return {
+      x: (dAz * Math.cos((sun.altitude * Math.PI) / 180)) / sunRadius,
+      y: (moon.altitude - sun.altitude) / sunRadius,
+    };
+  }
+
+  const cases: [string, number, number, number][] = [
+    ['2024-04-08', 31.0, -104.0, Date.UTC(2024, 3, 8, 18, 0)],
+    ['2027-08-02', 25.687, 32.639, Date.UTC(2027, 7, 2, 9, 30)],
+    ['2026-08-12', 39.47, -0.376, Date.UTC(2026, 7, 12, 18, 20)],
+    ['2023-10-14', 40.0, -110.0, Date.UTC(2023, 9, 14, 16, 0)],
+    ['2017-08-21', 44.0, -120.0, Date.UTC(2017, 7, 21, 17, 0)],
+  ];
+  it.each(cases)('%s: places the Moon against the Sun, zenith up', (id, lat, lon, ms) => {
+    const v = skyView(byId(id), { lat, lon }, ms);
+    const want = expected(lat, lon, ms);
+    // Within a few hundredths of the Sun's radius (about half an arcsecond per hundredth).
+    expect(Math.abs(v.moonX - want.x)).toBeLessThan(0.05);
+    expect(Math.abs(v.moonY - want.y)).toBeLessThan(0.05);
+  });
+});
+
+describe('global span and distances', () => {
+  it('spans NASA’s first to last contact of the penumbra and umbra', () => {
+    // NASA, 2024 April 8: P1 15:42:15, P4 20:52:19, U1 16:38:48, U4 19:55:30 (TD); ΔT 69.1 s.
+    const span = globalSpan(byId('2024-04-08'), { deltaT: 69.1 });
+    const td = (h: number, m: number, s: number) => Date.UTC(2024, 3, 8, h, m, s) - 69.1 * 1000;
+    // A sphere for the Earth: within a couple of minutes.
+    expect(Math.abs(span.start - td(15, 42, 15)) / 1000).toBeLessThan(120);
+    expect(Math.abs(span.end - td(20, 52, 19)) / 1000).toBeLessThan(120);
+    expect(Math.abs(span.centralStart! - td(16, 38, 48)) / 1000).toBeLessThan(120);
+    expect(Math.abs(span.centralEnd! - td(19, 55, 30)) / 1000).toBeLessThan(120);
+    expect(globalSpan(byId('2027-02-06')).centralStart).toBeDefined();
+    expect(globalSpan(SOLAR_ECLIPSES.find((e) => e.type === 'P')!).centralStart).toBeUndefined();
+  });
+
+  it('measures the distance to the central line and the limits', () => {
+    const e = byId('2024-04-08');
+    const centre = centralPointAt(e, Date.UTC(2024, 3, 8, 18, 30))!;
+    const onLine = pathDistances(e, centre)!;
+    expect(onLine.centre).toBeLessThan(0.05);
+    expect(onLine.inside).toBe(true);
+    // Half the path width either side, give or take the path's asymmetry.
+    expect(onLine.north! + onLine.south!).toBeCloseTo(centre.width!, -1);
+    // 100 km north of the line: about 100 km closer to the northern limit, outside if the path is narrower.
+    const north = pathDistances(e, { lat: centre.lat + 100 / 111.2, lon: centre.lon })!;
+    expect(north.centre).toBeGreaterThan(60);
+    expect(north.centre).toBeLessThan(100.5);
+    expect(north.inside).toBe(north.north! < north.south! ? north.centre < centre.width! / 2 + 5 : true);
+    expect(pathDistances(SOLAR_ECLIPSES.find((x) => x.type === 'P')!, { lat: 0, lon: 0 })).toBeUndefined();
   });
 });

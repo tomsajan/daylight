@@ -25,7 +25,13 @@ The start page lets you pick one, and each has a switcher that keeps your places
 - **Instrument:** a dense, precise console built around a comparison table.
 - **Almanac:** daylight set in type like a printed almanac, with the year chart as the centrepiece.
 
-A fourth, **Reference**, is the plain wiring of every shared component, for development.
+A fourth page, **Eclipses**, is about solar eclipses rather than daylight: every solar eclipse from 1980 to 2100 on a
+map you can zoom down to street level, with the path of totality or annularity, its exact limits and central line,
+coverage contours, and the Moon's shadow moving across at the chosen time. For any place it gives the contact times,
+how much of the Sun is covered, the Sun's height and direction, how far it is to the central line and the path's
+limits, and a picture of the Sun and Moon as they will look from there.
+
+**Reference** is the plain wiring of every shared component, for development.
 
 ## How it works
 
@@ -34,7 +40,12 @@ static host can serve. The only network requests after loading go to OpenStreetM
 ([Photon](https://photon.komoot.io), with [Nominatim](https://nominatim.org) as a fallback for search), for place
 search and for naming a spot clicked on the globe. Nominatim is only asked when you press Enter while Photon is
 not answering, as its usage policy does not allow search-as-you-type. Time zones are
-looked up offline.
+looked up offline. The Eclipses page also loads map tiles: [OpenFreeMap](https://openfreemap.org) (OpenStreetMap
+data), the [Sentinel-2 cloudless](https://s2maps.eu) mosaic, or [Mapy.com](https://mapy.com).
+
+Mapy.com needs an API key, free for modest use at [developer.mapy.com](https://developer.mapy.com). Either enter it
+on the page, where it stays in that browser, or build with `VITE_MAPY_API_KEY=...`. A key built into a public site
+should be restricted to that site's address in the Mapy.com account.
 
 ## Running locally
 
@@ -66,7 +77,8 @@ src/core/            shared engine, used by every design
   astro/             sun position (NOAA/Meeus) and daily light: sunrise, sunset, twilights, polar day/night
   time/              time scales (local, UTC, mean & apparent solar time) and formatting
   geo/               places, time zone lookup, geocoding, "where am I"
-  eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits
+  eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits,
+                     and the same maths in GLSL for drawing them per pixel
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
   globe/             Three.js globe renderer + Svelte wrapper
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
@@ -85,6 +97,12 @@ Sun positions follow the NOAA solar calculator algorithms, and the tests compare
 which is less than the effect of local weather on refraction. Sunrise and sunset are found by sampling the sun's
 altitude through each day rather than with a closed-form formula, so polar day, polar night and DST days work everywhere.
 
+Eclipses are computed from NASA's Besselian elements. The tests compare them with NASA's own tables (central line and
+limits within about a kilometre, durations within a fraction of a second) and with astronomy-engine (contact times
+within seconds). Not modelled: the mountains and valleys on the Moon's limb, which move contacts by a second or two
+and the path limits by up to a kilometre or two. For eclipses after the last measured ΔT, the Earth's rotation is
+extrapolated, which shifts times by seconds and the path east or west by about half a kilometre per second.
+
 ## Credits
 
 - Earth imagery: NASA Blue Marble and Black Marble (public domain), as packaged by
@@ -93,6 +111,10 @@ altitude through each day rather than with a closed-form formula, so polar day, 
 - Time zones: [@photostructure/tz-lookup](https://github.com/photostructure/tz-lookup).
 - Eclipse predictions by Fred Espenak, NASA's GSFC ([eclipse.gsfc.nasa.gov](https://eclipse.gsfc.nasa.gov)); ΔT from
   the [IERS](https://www.iers.org). `node scripts/fetch-eclipses.mjs` downloads both again.
+- Eclipse maps: [MapLibre GL JS](https://maplibre.org); tiles from [OpenFreeMap](https://openfreemap.org)
+  (© [OpenMapTiles](https://openmaptiles.org), data © OpenStreetMap contributors),
+  [Sentinel-2 cloudless](https://s2maps.eu) by EOX (contains modified Copernicus Sentinel data) and
+  [Mapy.com](https://mapy.com) (© Seznam.cz a.s. and others).
 - Built with [Svelte](https://svelte.dev), [Three.js](https://threejs.org) and [Vite](https://vite.dev).
 
 ## License

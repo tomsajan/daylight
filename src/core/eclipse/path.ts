@@ -19,7 +19,7 @@ import {
   type ElementsAt,
   type SolarEclipse,
 } from './elements';
-import { localCircumstances, observerConstants, relative, sunAltAz } from './local';
+import { localCircumstances, maximum, observerConstants, relative, sunAltAz, type Observer } from './local';
 
 export interface GroundPoint {
   lat: number;
@@ -216,18 +216,7 @@ export interface GreatestEclipse extends PathPoint {
  */
 export function greatestEclipse(e: SolarEclipse, opts: Pick<PathOptions, 'deltaT'> = {}): GreatestEclipse {
   const dT = opts.deltaT ?? eclipseDeltaT(e);
-  let t = (e.jdGreatest - e.jd0) * 24;
-  for (let i = 0; i < 20; i++) {
-    const el = elementsAt(e, t);
-    // d/dt (x² + y²) = 0, by Newton's method on x·x′ + y·y′.
-    const f = el.x * el.dx + el.y * el.dy;
-    const h = 1e-4;
-    const el2 = elementsAt(e, t + h);
-    const df = (el2.x * el2.dx + el2.y * el2.dy - f) / h;
-    const step = f / df;
-    t -= step;
-    if (Math.abs(step) < 1e-8) break;
-  }
+  const t = greatestEclipseTime(e);
   const el = elementsAt(e, t);
   const gamma = Math.sign(el.y) * Math.hypot(el.x, el.y);
   const axis = toGround(el, el.x, el.y, dT);
@@ -270,6 +259,118 @@ function pathWidth(e: SolarEclipse, t: number, centre: GroundPoint, dT: number):
     width += d;
   }
   return width;
+}
+
+/** When the eclipse begins and ends anywhere on Earth, Unix ms (UT). */
+export interface GlobalSpan {
+  /** The penumbra first and last touches the Earth: the partial eclipse begins and ends somewhere. */
+  start: number;
+  end: number;
+  /** The umbra (or antumbra) first and last touches the Earth; central eclipses only. */
+  centralStart?: number;
+  centralEnd?: number;
+}
+
+/**
+ * The outer contacts of the eclipse with the Earth, taken as a sphere of the
+ * equatorial radius (a minute or so early or late, which is all a timeline needs).
+ */
+export function globalSpan(e: SolarEclipse, opts: Pick<PathOptions, 'deltaT'> = {}): GlobalSpan {
+  const dT = opts.deltaT ?? eclipseDeltaT(e);
+  const tg = greatestEclipseTime(e);
+  const [t0, t1] = e.range;
+  // Positive while the shadow (penumbra or umbra) reaches the Earth's disc.
+  const reach = (t: number, umbra: boolean) => {
+    const el = elementsAt(e, t);
+    return 1 + (umbra ? Math.abs(el.l2) : el.l1) - Math.hypot(el.x, el.y);
+  };
+  const edge = (from: number, to: number, umbra: boolean) => {
+    if (reach(to, umbra) > 0) return to;
+    for (let i = 0; i < 40; i++) {
+      const mid = (from + to) / 2;
+      if (reach(mid, umbra) > 0) from = mid;
+      else to = mid;
+    }
+    return from;
+  };
+  const ms = (t: number) => elementTimeToMs(e, t, dT);
+  const span: GlobalSpan = { start: ms(edge(tg, t0, false)), end: ms(edge(tg, t1, false)) };
+  if (reach(tg, true) > 0) {
+    span.centralStart = ms(edge(tg, t0, true));
+    span.centralEnd = ms(edge(tg, t1, true));
+  }
+  return span;
+}
+
+/** Element time at which the shadow axis passes closest to the Earth's centre. */
+function greatestEclipseTime(e: SolarEclipse): number {
+  let t = (e.jdGreatest - e.jd0) * 24;
+  for (let i = 0; i < 20; i++) {
+    const el = elementsAt(e, t);
+    // d/dt (x² + y²) = 0, by Newton's method on x·x′ + y·y′.
+    const f = el.x * el.dx + el.y * el.dy;
+    const h = 1e-4;
+    const el2 = elementsAt(e, t + h);
+    const step = f / ((el2.x * el2.dx + el2.y * el2.dy - f) / h);
+    t -= step;
+    if (Math.abs(step) < 1e-8) break;
+  }
+  return t;
+}
+
+/** How far a place is from the central line and from the limits of the path, km. */
+export interface PathDistances {
+  /** To the central line. */
+  centre: number;
+  /** To the northern and southern limit of totality or annularity. */
+  north?: number;
+  south?: number;
+  /** Inside the path of totality or annularity. */
+  inside: boolean;
+}
+
+/**
+ * Distances from a place to the central line and the path limits, each the
+ * shortest distance to that line. Undefined for a partial eclipse, or when the
+ * place is too far from the path for the lines to be found nearby.
+ */
+export function pathDistances(e: SolarEclipse, observer: Observer, opts: Pick<PathOptions, 'deltaT'> = {}): PathDistances | undefined {
+  const dT = opts.deltaT ?? eclipseDeltaT(e);
+  const o = observerConstants(observer);
+  const r = maximum(e, o, (e.jdGreatest - e.jd0) * 24, dT);
+  const near = (point: (t: number) => GroundPoint | null) => {
+    const dist = (t: number) => {
+      const p = point(t);
+      return p ? distanceKm(observer, p) : Infinity;
+    };
+    // Golden-section search over ±30 minutes around the place's own maximum.
+    const span = 0.5;
+    let lo = r.t - span;
+    let hi = r.t + span;
+    const g = (Math.sqrt(5) - 1) / 2;
+    for (let i = 0; i < 40; i++) {
+      const a = hi - g * (hi - lo);
+      const b = lo + g * (hi - lo);
+      if (dist(a) < dist(b)) hi = b;
+      else lo = a;
+    }
+    const t = (lo + hi) / 2;
+    // A minimum at the edge of the window is no minimum: the line is out of reach.
+    if (Math.abs(t - r.t) > span * 0.99) return undefined;
+    const d = dist(t);
+    return Number.isFinite(d) ? d : undefined;
+  };
+  const centre = near((t) => {
+    const el = elementsAt(e, t);
+    return toGround(el, el.x, el.y, dT);
+  });
+  if (centre === undefined) return undefined;
+  return {
+    centre,
+    north: near((t) => limitsAt(e, t, dT, true).north),
+    south: near((t) => limitsAt(e, t, dT, true).south),
+    inside: Math.hypot(r.u, r.v) < Math.abs(r.L2),
+  };
 }
 
 const MEAN_RADIUS_KM = 6371.0088;

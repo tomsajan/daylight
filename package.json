@@ -28,6 +28,7 @@
   "dependencies": {
     "@photostructure/tz-lookup": "^11.7.0",
     "d3": "^7.9.0",
+    "maplibre-gl": "^6.11.2",
     "three": "^0.186.1"
   }
 }

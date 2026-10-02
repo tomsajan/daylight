@@ -21,6 +21,8 @@ export default defineConfig({
     alias: { $core: resolve(root, 'src/core') },
   },
   server: { host: true },
+  // MapLibre's worker is an ES module.
+  worker: { format: 'es' },
   build: {
     // three.js + time zone boundaries; ~190 kB gzipped, fine for this app.
     chunkSizeWarningLimit: 1000,

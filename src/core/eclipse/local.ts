@@ -153,6 +153,40 @@ export function phaseAt(e: SolarEclipse, observer: Observer, ms: number, dT = ec
   return phaseOf(relative(e, o, msToElementTime(e, ms, dT), dT), o);
 }
 
+/** The Sun and the Moon as the observer sees them, for drawing. */
+export interface SkyView extends Phase {
+  /**
+   * The Moon's centre relative to the Sun's, in solar radii: x to the right
+   * and y up for someone facing the Sun, with the zenith straight up.
+   */
+  moonX: number;
+  moonY: number;
+  /** The parallactic angle: between the directions to celestial north and to the zenith, degrees. */
+  parallactic: number;
+}
+
+/** The phase at an instant, laid out as seen in the sky. */
+export function skyView(e: SolarEclipse, observer: Observer, ms: number, dT = eclipseDeltaT(e)): SkyView {
+  const o = observerConstants(observer);
+  const r = relative(e, o, msToElementTime(e, ms, dT), dT);
+  const p = phaseOf(r, o);
+  // The Moon is displaced from the Sun along (u, v): u to the east, v to the north.
+  // Facing the Sun with north up, east is on the left.
+  const sunRadius = r.L1 / (1 + p.moonSunRatio);
+  const right = -r.u / sunRadius;
+  const up = r.v / sunRadius;
+  const phi = observer.lat * RAD;
+  const d = r.el.d;
+  const q = Math.atan2(Math.sin(r.h), Math.tan(phi) * Math.cos(d) - Math.sin(d) * Math.cos(r.h));
+  // Turn the picture by the parallactic angle, so the zenith is up instead of north.
+  return {
+    ...p,
+    moonX: right * Math.cos(q) + up * Math.sin(q),
+    moonY: up * Math.cos(q) - right * Math.sin(q),
+    parallactic: q * DEG,
+  };
+}
+
 export type LocalKind = 'none' | 'partial' | 'annular' | 'total';
 
 export interface Contact extends Phase {
@@ -202,7 +236,7 @@ export interface LocalOptions {
 const TOLERANCE = 1e-7; // hours, under a millisecond
 
 /** Iterates from t to the instant the observer is closest to the shadow axis. */
-function maximum(e: SolarEclipse, o: ObserverConstants, t: number, dT: number): Relative {
+export function maximum(e: SolarEclipse, o: ObserverConstants, t: number, dT: number): Relative {
   let r = relative(e, o, t, dT);
   for (let i = 0; i < 30; i++) {
     const step = -(r.u * r.a + r.v * r.b) / (r.a * r.a + r.b * r.b);

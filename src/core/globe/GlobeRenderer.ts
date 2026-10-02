@@ -10,7 +10,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { subsolarPoint } from '../astro/sun';
-import { eclipseDeltaT, greatestEclipseMs, msToElementTime, type SolarEclipse } from '../eclipse/elements';
+import { eclipseDeltaT, msToElementTime, type SolarEclipse } from '../eclipse/elements';
+import { ECLIPSE_GLSL, eclipseUniforms } from '../eclipse/glsl';
 // Imported, not served from /public: Vite then emits hashed files with URLs that work
 // from every page (designs live in subfolders) and under any base path.
 import dayTexture from './textures/earth-blue-marble.jpg';
@@ -127,66 +128,15 @@ const earthFragment = /* glsl */ `
   uniform float dayLevel;
   uniform float nightLevel;
   uniform vec3 terminatorColor;
-  // Solar eclipse: Besselian elements as polynomials in t (hours from t0, TT).
   uniform float eclPath;
   uniform float eclShadow;
-  uniform vec4 eclX;
-  uniform vec4 eclY;
-  uniform vec3 eclD;
-  uniform vec3 eclMu;
-  uniform vec3 eclL1;
-  uniform vec3 eclL2;
-  uniform vec2 eclTanF;
-  uniform vec2 eclRange;
-  // −ΔT turned into degrees of Earth rotation.
-  uniform float eclLonShift;
-  // Element time of greatest eclipse (start of each pixel's search) and of now.
-  uniform float eclGreatest;
+  // Element time now.
   uniform float eclNow;
   uniform vec3 eclColor;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorld;
-
-  // The observer relative to the Moon's shadow at element time t; the same
-  // quantities as relative() in core/eclipse/local.ts.
-  struct Rel { float u; float v; float a; float b; float L1; float L2; float zeta; };
-
-  Rel relAt(float t, float rs, float rc, float lon) {
-    float x = eclX.x + t * (eclX.y + t * (eclX.z + t * eclX.w));
-    float y = eclY.x + t * (eclY.y + t * (eclY.z + t * eclY.w));
-    float dx = eclX.y + t * (2.0 * eclX.z + 3.0 * t * eclX.w);
-    float dy = eclY.y + t * (2.0 * eclY.z + 3.0 * t * eclY.w);
-    float d = radians(eclD.x + t * (eclD.y + t * eclD.z));
-    float dd = radians(eclD.y + 2.0 * t * eclD.z);
-    float dmu = radians(eclMu.y + 2.0 * t * eclMu.z);
-    float h = radians(eclMu.x + t * (eclMu.y + t * eclMu.z) + lon + eclLonShift);
-    float sd = sin(d);
-    float cd = cos(d);
-    float xi = rc * sin(h);
-    float eta = rs * cd - rc * sd * cos(h);
-    float zeta = rs * sd + rc * cd * cos(h);
-    Rel r;
-    r.u = x - xi;
-    r.v = y - eta;
-    r.a = dx - dmu * rc * cos(h);
-    r.b = dy - (dmu * xi * sd - zeta * dd);
-    r.L1 = eclL1.x + t * (eclL1.y + t * eclL1.z) - zeta * eclTanF.x;
-    r.L2 = eclL2.x + t * (eclL2.y + t * eclL2.z) - zeta * eclTanF.y;
-    r.zeta = zeta;
-    return r;
-  }
-
-  // Fraction of the Sun's disc (radius 1) covered by the Moon's (radius k) at centre distance s.
-  float covered(float sep, float k) {
-    if (sep >= 1.0 + k) return 0.0;
-    if (sep <= abs(1.0 - k)) return k >= 1.0 ? 1.0 : k * k;
-    float a1 = acos(clamp((sep * sep + 1.0 - k * k) / (2.0 * sep), -1.0, 1.0));
-    float a2 = acos(clamp((sep * sep + k * k - 1.0) / (2.0 * sep * k), -1.0, 1.0));
-    float tri = 0.5 * sqrt(max(0.0, (-sep + 1.0 + k) * (sep + 1.0 - k) * (sep - 1.0 + k) * (sep + 1.0 + k)));
-    return clamp((a1 + k * k * a2 - tri) / 3.14159265, 0.0, 1.0);
-  }
-
+${ECLIPSE_GLSL}
   // How far from night (0) to day (1) the light is at a sun altitude (degrees).
   float lightFraction(float alt) {
     if (bands > 0.5) {
@@ -212,11 +162,10 @@ const earthFragment = /* glsl */ `
     float alt = degrees(asin(clamp(s, -1.0, 1.0)));
 
     // The observer on the WGS 84 ellipsoid (texture latitudes are geodetic), for the eclipse.
-    float phi = asin(clamp(n.y, -1.0, 1.0));
     float lon = degrees(atan(-n.z, n.x));
-    float reduced = atan(0.99664719 * sin(phi), cos(phi));
-    float rs = 0.99664719 * sin(reduced);
-    float rc = cos(reduced);
+    vec2 ellipsoid = observerOnEllipsoid(asin(clamp(n.y, -1.0, 1.0)));
+    float rs = ellipsoid.x;
+    float rc = ellipsoid.y;
 
     // The Moon's shadow now: how much of the Sun is hidden, and the outlines of penumbra and umbra.
     float cover = 0.0;
@@ -264,11 +213,7 @@ const earthFragment = /* glsl */ `
     if (eclPath > 0.5) {
       // Each pixel finds its own greatest eclipse: the instant it passes closest to the shadow axis.
       float t = eclGreatest;
-      Rel r = relAt(t, rs, rc, lon);
-      for (int i = 0; i < 5; i++) {
-        t -= (r.u * r.a + r.v * r.b) / (r.a * r.a + r.b * r.b);
-        r = relAt(t, rs, rc, lon);
-      }
+      Rel r = eclipseMaximum(rs, rc, lon, t);
       float m = length(vec2(r.u, r.v));
       float magnitude = (r.L1 - m) / (r.L1 + r.L2);
       // Only where the Sun is up at that moment, within the span the elements cover.
@@ -537,17 +482,11 @@ export class GlobeRenderer {
     this.eclipse = e ? { e, deltaT: deltaT ?? eclipseDeltaT(e) } : null;
     const u = this.earth.material.uniforms;
     if (e) {
-      const dT = this.eclipse!.deltaT;
-      (u.eclX.value as THREE.Vector4).set(e.x[0], e.x[1], e.x[2], e.x[3]);
-      (u.eclY.value as THREE.Vector4).set(e.y[0], e.y[1], e.y[2], e.y[3]);
-      (u.eclD.value as THREE.Vector3).set(e.d[0], e.d[1], e.d[2]);
-      (u.eclMu.value as THREE.Vector3).set(e.mu[0], e.mu[1], e.mu[2]);
-      (u.eclL1.value as THREE.Vector3).set(e.l1[0], e.l1[1], e.l1[2]);
-      (u.eclL2.value as THREE.Vector3).set(e.l2[0], e.l2[1], e.l2[2]);
-      (u.eclTanF.value as THREE.Vector2).set(e.tanF1, e.tanF2);
-      (u.eclRange.value as THREE.Vector2).set(e.range[0], e.range[1]);
-      u.eclLonShift.value = -0.00417807 * dT;
-      u.eclGreatest.value = msToElementTime(e, greatestEclipseMs(e, dT), dT);
+      for (const [name, value] of Object.entries(eclipseUniforms(e, this.eclipse!.deltaT))) {
+        const uniform = u[name];
+        if (typeof value === 'number') uniform.value = value;
+        else (uniform.value as THREE.Vector2 | THREE.Vector3 | THREE.Vector4).fromArray(value);
+      }
     }
     this.applyOptions();
   }
