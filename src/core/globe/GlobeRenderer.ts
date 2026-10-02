@@ -10,6 +10,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { subsolarPoint } from '../astro/sun';
+// Imported, not served from /public: Vite then emits hashed files with URLs that work
+// from every page (designs live in subfolders) and under any base path.
+import dayTexture from './textures/earth-blue-marble.jpg';
+import nightTexture from './textures/earth-night.jpg';
+import waterTexture from './textures/earth-water.png';
 
 export interface GlobeMarker {
   id: string;
@@ -48,8 +53,6 @@ export interface GlobeOptions {
   lineColor: string;
   terminatorColor: string;
   background: string | null;
-  /** Folder holding the Earth textures. */
-  textureBase: string;
 }
 
 export const DEFAULT_GLOBE_OPTIONS: GlobeOptions = {
@@ -70,7 +73,6 @@ export const DEFAULT_GLOBE_OPTIONS: GlobeOptions = {
   lineColor: '#ffffff',
   terminatorColor: '#ffcc66',
   background: null,
-  textureBase: `${import.meta.env.BASE_URL}textures/`,
 };
 
 const TROPIC = 23.4368;
@@ -279,8 +281,8 @@ export class GlobeRenderer {
     });
 
     const loader = new THREE.TextureLoader();
-    const tex = (name: string, srgb = true) => {
-      const t = loader.load(this.opts.textureBase + name, () => (this.dirty = true));
+    const tex = (url: string, srgb = true) => {
+      const t = loader.load(url, () => (this.dirty = true));
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
       return t;
@@ -292,9 +294,9 @@ export class GlobeRenderer {
         vertexShader: earthVertex,
         fragmentShader: earthFragment,
         uniforms: {
-          dayMap: { value: tex('earth-blue-marble.jpg') },
-          nightMap: { value: tex('earth-night.jpg') },
-          waterMap: { value: tex('earth-water.png', false) },
+          dayMap: { value: tex(dayTexture) },
+          nightMap: { value: tex(nightTexture) },
+          waterMap: { value: tex(waterTexture, false) },
           sunDir: { value: this.sunDir },
           bands: { value: 1 },
           lines: { value: 1 },
