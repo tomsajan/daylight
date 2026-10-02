@@ -29,6 +29,7 @@
   import BottomSheet, { type Snap } from './BottomSheet.svelte';
   import Icon from './Icon.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import AppSwitch from '$core/components/AppSwitch.svelte';
   import Splitter from '$core/components/Splitter.svelte';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { OBS_GLOBE } from './palette';
@@ -148,7 +149,7 @@
       <div class="brand">
         <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M5 16a11 11 0 0 1 22 0" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M1 16h30" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /><circle cx="16" cy="16" r="5" fill="currentColor" /></svg>
         <span>Daylight</span>
-        <div class="design o-design"><DesignSwitcher /></div>
+        <div class="design o-app o-app--inline"><AppSwitch /></div>
       </div>
       <Search onselect={choose} compare={adding} {canAdd} />
       <div class="facts">
@@ -173,6 +174,7 @@
     <div class="top-center">{@render comparePill()}</div>
 
     <div class="corner">
+      <div class="o-design o-design--glass"><DesignSwitcher /></div>
       <button type="button" class="o-btn o-btn--icon o-glass round" onclick={() => (settingsOpen = true)} aria-label="Settings" title="Settings">
         <Icon name="gear" />
       </button>
@@ -215,6 +217,7 @@
       <div class="topbar__search">
         <Search onselect={choose} compare={adding} {canAdd} onfocuschange={(f) => f && (snap = 'peek')} />
       </div>
+      <span class="o-app"><AppSwitch compact /></span>
       <button type="button" class="o-btn o-btn--icon o-glass round" onclick={() => (settingsOpen = true)} aria-label="Settings"><Icon name="gear" /></button>
     </div>
     <div class="top-left" style:opacity={snap === 'full' ? 0 : 1}>{@render comparePill()}</div>
@@ -262,6 +265,7 @@
       <section class="block block--end">
         <button type="button" class="o-btn" onclick={() => (settingsOpen = true)}><Icon name="gear" /> Settings</button>
         <div class="o-design"><DesignSwitcher label="Design" /></div>
+        <span class="o-app"><AppSwitch /></span>
       </section>
     </BottomSheet>
   {/if}
@@ -359,6 +363,8 @@
     z-index: 25;
     top: 16px;
     right: 16px;
+    display: flex;
+    gap: 8px;
   }
   .round {
     width: 46px;

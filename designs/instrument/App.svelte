@@ -22,6 +22,7 @@
   import HelpPopover from './HelpPopover.svelte';
   import SettingsDrawer from './SettingsDrawer.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import AppSwitch from '$core/components/AppSwitch.svelte';
   import TimeSheet from './TimeSheet.svelte';
   import Splitter from '$core/components/Splitter.svelte';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
@@ -173,9 +174,11 @@
       <span class="word">Daylight</span>
       <span class="model">Instrument</span>
     </div>
+    <div class="app-link app-link--start"><AppSwitch /></div>
     <div class="search-slot"><SearchBox /></div>
     <div class="top-tools">
       <div class="design"><DesignSwitcher label="Design" /></div>
+      <div class="app-link app-link--icon"><AppSwitch compact /></div>
       <button type="button" class="btn help-btn" onclick={() => (ui.helpOpen = !ui.helpOpen)} aria-expanded={ui.helpOpen} title="Keyboard shortcuts (?)">?</button>
       <button type="button" class="btn settings-btn" onclick={() => (ui.settingsOpen = true)} title="Settings (S)" aria-label="Settings">
         <Icon d={ICON.gear} size={15} /><span class="txt">Settings</span>
@@ -357,6 +360,30 @@
   .design :global(.dl-design select:hover) {
     border-color: var(--accent);
   }
+  .app-link {
+    display: flex;
+    align-items: center;
+    margin-right: 4px;
+  }
+  .app-link :global(.dl-app) {
+    height: 28px;
+    padding: 0 8px;
+    border-color: var(--rule-strong);
+    border-radius: var(--r);
+    font: 500 11.5px var(--mono);
+  }
+  .app-link :global(.dl-app:hover) {
+    border-color: var(--accent);
+  }
+  .app-link--icon {
+    display: none;
+  }
+  .app-link--icon :global(.dl-app) {
+    width: 36px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
 
   /* --- Main grid ------------------------------------------------------------- */
   .grid {
@@ -479,6 +506,7 @@
     .model,
     .word,
     .design,
+    .app-link,
     .help-btn,
     .settings-btn .txt,
     .statusbar,
@@ -487,6 +515,10 @@
     }
     .search-slot {
       flex: 1;
+    }
+    .app-link--icon {
+      display: flex;
+      margin-right: 0;
     }
     .settings-btn {
       width: 36px;

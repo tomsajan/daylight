@@ -20,20 +20,27 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
   like from any place (see below).
 - Works on phones; the whole state (places, time, speed) is in the URL, so a link shows the same view.
 
-### Three designs of the same app
+### Two apps
 
-The start page lets you pick one, and each has a switcher that keeps your places, time and settings:
+The start page offers two apps, **Daylight** and **Eclipses**. Every page has a link to the other app that takes your
+places along; going back returns to the Daylight design you came from, and to the eclipse you left.
+
+### Daylight in three designs
+
+Daylight opens in Observatory; a switcher on every page moves to another design and keeps your places, time and
+settings:
 
 - **Observatory:** the globe fills the screen and everything else floats over it on glass.
 - **Instrument:** a dense, precise console built around a comparison table.
 - **Almanac:** daylight set in type like a printed almanac, with the year chart as the centrepiece.
 
 **Reference** is the plain wiring of every shared component, for development, including a table of the solar
-eclipses seen from the selected place and the Moon's shadow on the globe.
+eclipses seen from the selected place and the Moon's shadow on the globe. The start page lists it only when the site
+runs locally.
 
 ### Eclipses
 
-A fourth page, [Eclipses](https://daylight.tomsa.xyz/designs/eclipse/), is about eclipses rather than daylight. A
+[Eclipses](https://daylight.tomsa.xyz/designs/eclipse/) is about eclipses rather than daylight. A
 switch at the top of its panel picks solar or lunar eclipses; each side has its own list, filters by type and can
 list only the eclipses seen from the chosen place. Pick a place by searching or by clicking the map.
 
@@ -114,15 +121,16 @@ src/core/            shared engine, used by every design
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
   globe/             Three.js globe renderer + Svelte wrapper
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
-  components/        place search, time and speed controls, settings panel, design switcher, splitter
+  components/        place search, time and speed controls, settings panel, design and app switchers, splitter
 designs/<name>/      one folder per design; each is its own page at /designs/<name>/
 designs/eclipse/     the Eclipses page: MapLibre map, the eclipse layer drawn per pixel, panels and sky views
 scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/
-index.html           start page listing the designs
+index.html           start page: the two apps and Daylight's designs
 ```
 
-To add a design, create `designs/<name>/` with an `index.html`, a `main.ts` and a `meta.ts`. The build and the start
-page pick it up automatically.
+To add a design, create `designs/<name>/` with an `index.html`, a `main.ts` and a `meta.ts` (its name, order, and
+which app it belongs to; see `src/core/apps.ts`). The build, the start page and the switchers pick it up
+automatically.
 
 ## Accuracy
 

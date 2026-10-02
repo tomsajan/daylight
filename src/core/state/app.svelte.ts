@@ -296,15 +296,18 @@ function readUrl(): { places: Place[]; selected: number; time: number | null; sp
   };
 }
 
-/** The current state as a query string ("?p=…"), e.g. to carry it to another design. */
-export function stateQuery(): string {
+/**
+ * The current state as a query string ("?p=…"), e.g. to carry it to another design. Without time,
+ * only the places and which one is selected.
+ */
+export function stateQuery({ time = true }: { time?: boolean } = {}): string {
   const q = new URLSearchParams();
   for (const p of app.places) q.append('p', [p.name, p.detail, p.lat.toFixed(4), p.lon.toFixed(4)].join('~'));
   const sel = app.places.findIndex((p) => p.id === app.selected?.id);
   if (sel > 0) q.set('s', String(sel));
-  if (!app.live) q.set('t', new Date(Math.round(app.time / 60000) * 60000).toISOString().replace(':00.000Z', 'Z'));
-  if (app.speed !== 1) q.set('v', String(Number(app.speed.toPrecision(3))));
-  if (app.playing && !app.live) q.set('run', '1');
+  if (time && !app.live) q.set('t', new Date(Math.round(app.time / 60000) * 60000).toISOString().replace(':00.000Z', 'Z'));
+  if (time && app.speed !== 1) q.set('v', String(Number(app.speed.toPrecision(3))));
+  if (time && app.playing && !app.live) q.set('run', '1');
   return `?${q.toString().replace(/%7E/g, '~').replace(/%2C/g, ',').replace(/%3A/g, ':')}`;
 }
 

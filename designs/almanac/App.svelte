@@ -24,6 +24,7 @@
   import Notes from './components/Notes.svelte';
   import Preferences from './components/Preferences.svelte';
   import DesignPicker from './components/DesignPicker.svelte';
+  import AppSwitch from '$core/components/AppSwitch.svelte';
   import Splitter from '$core/components/Splitter.svelte';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
   import { daySentence, longDate, nowSentence, zoneName } from './almanac.svelte';
@@ -76,11 +77,13 @@
 
 <div class="alm">
   <nav class="topline" aria-label="Site">
-    <a class="wordmark" href="../../" title="All designs">The Daylight Almanac</a>
+    <a class="wordmark" href="../../" title="Start page">The Daylight Almanac</a>
     <div class="find">
       <AlmanacSearch label="Find a place" onselect={(p) => app.replaceSelected(p)} oncompare={(p) => app.addPlace(p)} />
     </div>
     <div class="design"><DesignPicker /></div>
+    <div class="app-link"><AppSwitch /></div>
+    <div class="app-link app-link--icon"><AppSwitch compact /></div>
     <button type="button" class="prefs-btn" onclick={() => prefs?.open()}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h9M15 6h2M3 14h2M8 14h9" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></svg>
       Preferences
@@ -179,8 +182,26 @@
     max-width: 440px;
     margin-left: auto;
   }
-  .design {
+  .design,
+  .app-link {
     flex: none;
+  }
+  .app-link :global(.dl-app) {
+    height: 36px;
+    padding: 0 2px;
+    border: 0;
+    border-bottom: 1px solid var(--rule-strong);
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink);
+    font: italic 500 1rem/1 var(--serif);
+  }
+  .app-link :global(.dl-app:hover) {
+    border-bottom-color: var(--ink);
+    color: var(--accent);
+  }
+  .app-link--icon {
+    display: none;
   }
   .prefs-btn {
     display: inline-flex;
@@ -383,7 +404,7 @@
   @media (max-width: 759px) {
     .topline {
       flex-wrap: wrap;
-      gap: 6px 12px;
+      gap: 6px 8px;
     }
     .find {
       order: 3;
@@ -391,11 +412,18 @@
       max-width: none;
     }
     /* No room on the top line; the colophon and Preferences carry the switcher on phones. */
-    .design {
+    .design,
+    .app-link {
       display: none;
     }
-    .prefs-btn {
+    .app-link--icon {
+      display: block;
       margin-left: auto;
+    }
+    .app-link--icon :global(.dl-app) {
+      width: 30px;
+      padding: 0;
+      justify-content: center;
     }
     .masthead {
       padding-top: 22px;

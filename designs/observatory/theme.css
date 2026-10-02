@@ -192,9 +192,64 @@ select {
   border-color: var(--hair-strong);
   color: var(--ink);
 }
+/* Floating over the globe: a glass pill as tall as the round buttons beside it. */
+.o-design--glass .dl-design select {
+  height: 46px;
+  padding: 0 34px 0 18px;
+  border-color: var(--hair);
+  background-color: var(--glass);
+  background-position: right 14px center;
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0.03em;
+}
 .o-design .dl-design option {
   background: #0d1428;
   color: var(--ink);
+}
+
+/* --- Link to the other app (core AppSwitch): a glass pill ----------------- */
+
+.o-app .dl-app {
+  height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.o-app .dl-app svg {
+  color: var(--gold);
+}
+.o-app .dl-app:hover {
+  border-color: var(--hair-strong);
+  color: var(--gold-hot);
+}
+.o-app .dl-app--compact {
+  width: 46px;
+  padding: 0;
+}
+/* In a panel's header row: the size of the design switcher's pill. */
+.o-app--inline .dl-app {
+  height: 32px;
+  padding: 0 14px 0 12px;
+  border-color: var(--hair-strong);
+  background: rgb(255 255 255 / 0.03);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  font-size: 13px;
 }
 
 /* --- Segmented choice -------------------------------------------------------- */

@@ -8,7 +8,8 @@
   import { app } from '$core/state/app.svelte';
   import { settings, resolvedTheme } from '$core/state/settings.svelte';
   import PlaceSearch from '$core/components/PlaceSearch.svelte';
-  import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import AppSwitch from '$core/components/AppSwitch.svelte';
+  import { rememberEclipse } from '$core/apps';
   import Splitter from '$core/components/Splitter.svelte';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
   import '$core/components/controls.css';
@@ -195,6 +196,7 @@
     const e = eclipse;
     untrack(() => {
       history.replaceState(null, '', `${location.pathname}${location.search}#${e.id}`);
+      rememberEclipse(e.id);
       const keepTime = firstPick && new URLSearchParams(location.search).has('t');
       if (!keepTime) {
         app.setTime(startTime(e));
@@ -217,6 +219,15 @@
     keyVersion++;
   }
 
+  // Light, dark or following the system; shared with the Daylight designs.
+  const THEME_ORDER = ['auto', 'light', 'dark'] as const;
+  const THEME_TITLES = {
+    auto: 'Theme: following the system (click for light)',
+    light: 'Theme: light (click for dark)',
+    dark: 'Theme: dark (click to follow the system)',
+  };
+  const cycleTheme = () => (settings.theme = THEME_ORDER[(THEME_ORDER.indexOf(settings.theme) + 1) % 3]);
+
   const fly = (lat: number, lon: number, zoom: number) => mapView?.flyTo(lat, lon, zoom);
 </script>
 
@@ -224,7 +235,20 @@
   <aside class="panel" bind:this={panelEl}>
     <header>
       <h1>Eclipses</h1>
-      <DesignSwitcher />
+      <button class="theme" onclick={cycleTheme} title={THEME_TITLES[settings.theme]} aria-label={THEME_TITLES[settings.theme]}>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          {#if settings.theme === 'light'}
+            <circle cx="10" cy="10" r="3.6" fill="currentColor" />
+            <path d="M10 2v2.4M10 15.6V18M2 10h2.4M15.6 10H18M4.3 4.3l1.7 1.7M14 14l1.7 1.7M4.3 15.7 6 14M14 6l1.7-1.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          {:else if settings.theme === 'dark'}
+            <path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor" />
+          {:else}
+            <circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path d="M10 3.5a6.5 6.5 0 0 1 0 13z" fill="currentColor" />
+          {/if}
+        </svg>
+      </button>
+      <AppSwitch />
     </header>
     <PlaceSearch
       onselect={(p) => {
@@ -383,8 +407,27 @@
     gap: 10px;
   }
   h1 {
-    margin: 0;
+    margin: 0 auto 0 0;
     font-size: 1.35rem;
+  }
+  .theme {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .theme:hover {
+    border-color: var(--accent);
+  }
+  .theme svg {
+    width: 17px;
+    height: 17px;
   }
   .row {
     display: flex;
