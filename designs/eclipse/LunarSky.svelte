@@ -1,15 +1,18 @@
 <!--
   The Moon in the Earth's shadow at the current time: the penumbra and umbra,
   the Moon's track through them, and the Moon itself, red where the umbra
-  covers it. Turned to the place's sky (zenith up), or north up without one.
+  covers it. Turned to the place's sky (zenith up), or north up without one;
+  the horizon is the terrain's skyline when that is known.
 -->
 <script lang="ts">
   import { moonPlace, shadowView, eclipseDeltaT, lunarContacts, type LunarEclipse, type Observer } from '$core/eclipse';
   import { compassPoint } from '$core/time/format';
   import { refraction } from '$core/astro/sun';
+  import { skylineAround } from '$core/terrain';
   import { lunarPhaseName } from './describe';
   import { ground } from './ground.svelte';
   import GroundSlider from './GroundSlider.svelte';
+  import { terrain } from './terrain.svelte';
 
   interface Props {
     eclipse: LunarEclipse;
@@ -66,6 +69,16 @@
   const total = $derived(view.umbralMagnitude >= 1);
   // The horizon below the Moon by its apparent altitude (refraction lifts it by about half a degree low down).
   const horizonY = $derived(sky ? moon[1] + (sky.altitude + refraction(sky.altitude)) * scale : SIZE);
+  const skyline = $derived(terrain.at(place));
+  /** The terrain's skyline across the picture: empty when all of it is below, null when it is not known. */
+  const terrainLine = $derived.by(() => {
+    const around = skyline && sky && skylineAround(skyline, sky, (SIZE / scale) * 1.2);
+    if (!around || !sky) return null;
+    const seen = sky.altitude + refraction(sky.altitude);
+    const pts = around.map((p) => [moon[0] + p.right * scale, moon[1] + (seen - p.angle) * scale]);
+    if (pts.every(([, py]) => py > SIZE)) return '';
+    return pts.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join(' ');
+  });
   const phase = $derived(time < contacts[0].time || time > contacts.at(-1)!.time ? 'outside the eclipse' : lunarPhaseName(eclipse, time));
 </script>
 
@@ -104,7 +117,10 @@
         opacity={total ? 1 : 0.92}
       />
     </g>
-    {#if horizonY < SIZE}
+    {#if terrainLine}
+      <path d="{terrainLine} L{SIZE * 2},{SIZE + 2} L{-SIZE},{SIZE + 2} Z" fill="#1c2a1f" opacity={ground.opacity} />
+      <path d={terrainLine} fill="none" stroke="#9fb29a" stroke-width="1" />
+    {:else if terrainLine === null && horizonY < SIZE}
       <rect x="0" y={Math.max(0, horizonY)} width={SIZE} height={SIZE} fill="#1c2a1f" opacity={ground.opacity} />
       <line x1="0" x2={SIZE} y1={horizonY} y2={horizonY} stroke="#9fb29a" stroke-width="1" />
     {/if}

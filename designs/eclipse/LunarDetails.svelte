@@ -15,6 +15,7 @@
     lunarLocalCircumstances,
     lunarSpan,
     moonPlace,
+    shadowView,
     subLunarPoint,
     type LocalLunarEclipse,
     type LunarEclipse,
@@ -23,6 +24,7 @@
   import { formatClock, formatDate } from '$core/time/format';
   import { formatCoordinates } from '$core/geo/place';
   import LunarSky from './LunarSky.svelte';
+  import Horizon from './Horizon.svelte';
   import Timeline from './Timeline.svelte';
   import { LUNAR_TYPE_NAMES, describeLunar } from './describe';
 
@@ -89,6 +91,22 @@
     return kept;
   });
 
+  const horizonMarks = $derived.by(() => {
+    const names = at('U1') === undefined ? ['P1', 'Greatest', 'P4'] : ['U1', 'Greatest', 'U4'];
+    return contacts
+      .filter((c) => names.includes(c.name))
+      .map((c) => ({ time: c.time, label: LUNAR_CONTACT_LABELS[c.name], short: c.name === 'Greatest' ? 'Max' : c.name }));
+  });
+  const totality = $derived.by(() => {
+    const [a, b] = [at('U2'), at('U3')];
+    return a !== undefined && b !== undefined ? { start: a, end: b, name: 'Totality' } : { start: greatest, end: greatest, name: 'Greatest eclipse' };
+  });
+  /** The Moon's colour at the time: bright, part in the umbra, or red in totality. */
+  const moonFill = $derived.by(() => {
+    const m = shadowView(eclipse, app.time, dT).umbralMagnitude;
+    return m >= 1 ? '#a8401c' : m > 0 ? '#c9997e' : '#dedcd6';
+  });
+
   const utc = (ms: number) => new Date(Math.round(ms / 1000) * 1000).toISOString().slice(11, 19);
   const clock = (ms: number) => formatClock(ms, app.scale, settings.hourCycle, true);
   const moonNow = $derived(place ? moonPlace(eclipse, place, app.time, dT) : null);
@@ -120,6 +138,21 @@
 <section class="now">
   <Timeline start={span.start} end={span.end} {marks} />
   <LunarSky {eclipse} time={app.time} {place} />
+  {#if place && local?.visible}
+    <Horizon
+      {place}
+      body="Moon"
+      radius={eclipse.semidiameter}
+      start={span.start}
+      end={span.end}
+      live={span}
+      timeMarks={marks}
+      position={(ms) => moonPlace(eclipse, place, ms, dT)}
+      marks={horizonMarks}
+      main={totality}
+      fill={moonFill}
+    />
+  {/if}
 </section>
 
 <section class="local">

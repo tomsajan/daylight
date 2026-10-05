@@ -42,7 +42,8 @@ runs locally.
 
 [Eclipses](https://daylight.tomsa.xyz/designs/eclipse/) is about eclipses rather than daylight. A
 switch at the top of its panel picks solar or lunar eclipses; each side has its own list, filters by type and can
-list only the eclipses seen from the chosen place. Pick a place by searching or by clicking the map.
+list only the eclipses seen from the chosen place. Pick a place by searching or by clicking the map, and drag its
+marker to move it.
 
 **Solar eclipses** (269, 1980-2100):
 
@@ -67,8 +68,16 @@ Both:
   keep the shadow (or the Moon) in view as it moves.
 - Night shading in twilight bands or smooth, and several background maps: streets, light, dark, satellite and
   Mapy.com.
-- In the sky picture, the horizon when the Sun or Moon is low; a slider sets how much the ground hides what is below
-  it.
+- The view towards the Sun or the Moon: its path across the sky over the eclipse, above the skyline of the terrain
+  around the place, with a close-up around where it is now. In words: whether totality or the maximum clears the
+  skyline and by how much, and when the Sun or Moon comes over it or goes behind it, with how far away and how high
+  the ground in the way is. Pointing at the picture tells, for that direction, how high the skyline is, how far and
+  how high above sea level its ground, and when the Sun or Moon is there and how far above the horizon and the
+  skyline. The picture can be dragged about, zoomed with the wheel, and enlarged to fill the window;
+  zoomed in, the skyline is worked out again in finer steps. Meant for choosing a spot together with a detailed
+  map: move the marker and see what the hills do.
+- In the sky picture, the horizon when the Sun or Moon is low, with the terrain's skyline; a slider sets how much
+  the ground hides what is below it.
 - The panel can be dragged wider for a bigger sky picture. A link keeps the eclipse, the place and the time, e.g.
   [the 2027 eclipse from Luxor](https://daylight.tomsa.xyz/designs/eclipse/?p=Luxor~Egypt~25.6870~32.6390&t=2027-08-02T10:05Z#2027-08-02).
 
@@ -80,7 +89,9 @@ static host can serve. The only network requests after loading go to OpenStreetM
 search and for naming a spot clicked on the globe. Nominatim is only asked when you press Enter while Photon is
 not answering, as its usage policy does not allow search-as-you-type. Time zones are
 looked up offline. The Eclipses page also loads map tiles: [OpenFreeMap](https://openfreemap.org) (OpenStreetMap
-data), the [Sentinel-2 cloudless](https://s2maps.eu) mosaic, or [Mapy.com](https://mapy.com).
+data), the [Sentinel-2 cloudless](https://s2maps.eu) mosaic, or [Mapy.com](https://mapy.com); and for the skyline,
+elevation tiles from the [terrain tiles on AWS](https://registry.opendata.aws/terrain-tiles/), some 15 to 30 per
+place, unless the terrain is switched off.
 
 Mapy.com needs an API key, free for modest use at [developer.mapy.com](https://developer.mapy.com). Either enter it
 on the page, where it stays in that browser, or build with `VITE_MAPY_API_KEY=...`. A key built into a public site
@@ -105,7 +116,7 @@ npm run dev          # http://localhost:5173
 
 Other commands:
 
-- `npm test`: sun and eclipse tests, against astronomy-engine and NASA's tables
+- `npm test`: sun and eclipse tests, against astronomy-engine and NASA's tables, and skyline tests on made-up terrain
 - `npm run check`: type check
 - `npm run build`: static site in `dist/`; `npm run preview` serves it
 
@@ -118,6 +129,7 @@ src/core/            shared engine, used by every design
   geo/               places, time zone lookup, geocoding, "where am I"
   eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits,
                      and the same maths in GLSL for drawing them per pixel; lunar eclipses 1980-2100
+  terrain/           elevation tiles, the skyline from a point, and the Sun or Moon against it
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
   globe/             Three.js globe renderer + Svelte wrapper
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
@@ -150,6 +162,12 @@ centred on the point opposite the Sun (astronomy-engine, with aberration) and si
 worked out from that geometry agree with NASA's within 20 seconds, and the Moon's altitude agrees with
 astronomy-engine within 0.05°.
 
+The skyline comes from elevation data about 30 m across (finer close by, coarser out to 200 km), on a spherical
+Earth with standard refraction along the ground. It is bare ground: no trees, no buildings. Rounded mountains come
+out within some 20 m of their height; a sharp peak can be 100 m low (the Matterhorn from Zermatt stands 17.6° high
+here, 18.5° in reality). Ground within a few hundred metres is rough. Where the Sun passes within half a degree of
+the skyline, go and look.
+
 ## Credits
 
 - Earth imagery: NASA Blue Marble and Black Marble (public domain), as packaged by
@@ -163,6 +181,8 @@ astronomy-engine within 0.05°.
   (© [OpenMapTiles](https://openmaptiles.org), data © OpenStreetMap contributors),
   [Sentinel-2 cloudless](https://s2maps.eu) by EOX (contains modified Copernicus Sentinel data) and
   [Mapy.com](https://mapy.com) (© Seznam.cz a.s. and others).
+- Terrain: [Mapzen terrain tiles](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) hosted as AWS
+  open data, from SRTM, GMTED2010, ETOPO1 and national elevation models.
 - Built with [Svelte](https://svelte.dev), [Three.js](https://threejs.org) and [Vite](https://vite.dev).
 
 ## License

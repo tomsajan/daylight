@@ -1,9 +1,11 @@
 <!--
   The Sun and the Moon as seen from the place at the current time, zenith up,
-  with the horizon when the Sun is near it.
+  with the horizon when the Sun is near it: the skyline of the terrain when
+  that is known, level ground otherwise.
 -->
 <script lang="ts">
   import type { SkyView } from '$core/eclipse';
+  import { seenAltitude, skylineAround, type Skyline } from '$core/terrain';
   import { compassPoint } from '$core/time/format';
   import { coverage } from './describe';
   import { ground } from './ground.svelte';
@@ -11,8 +13,9 @@
 
   interface Props {
     sky: SkyView;
+    skyline?: Skyline | null;
   }
-  let { sky }: Props = $props();
+  let { sky, skyline = null }: Props = $props();
 
   const SIZE = 220;
   const R = 52;
@@ -26,8 +29,18 @@
   const light = $derived(up ? Math.pow(1 - sky.obscuration, 0.5) : 0);
   const sky1 = $derived(`hsl(212 ${30 + 40 * light}% ${6 + 46 * light}%)`);
   const sky2 = $derived(`hsl(205 ${30 + 30 * light}% ${10 + 55 * light}%)`);
-  // Horizon, in the drawing's units: the Sun's altitude measured in solar radii below its centre.
-  const horizonY = $derived(c + (sky.altitude / SUN_RADIUS_DEG) * R);
+  // Horizon, in the drawing's units: the Sun's altitude as seen, measured in solar radii below its centre.
+  const seen = $derived(seenAltitude(sky.altitude));
+  const horizonY = $derived(c + (seen / SUN_RADIUS_DEG) * R);
+  /** The terrain's skyline across the picture: empty when all of it is below, null when it is not known. */
+  const terrainLine = $derived.by(() => {
+    const around = skyline && skylineAround(skyline, sky, ((SIZE / 2 / R) * SUN_RADIUS_DEG) * 1.1);
+    if (!around) return null;
+    const pts = around.map((p) => [c + (p.right / SUN_RADIUS_DEG) * R, c + ((seen - p.angle) / SUN_RADIUS_DEG) * R]);
+    // Nothing of it in the picture: the Sun is well above the ground.
+    if (pts.every(([, py]) => py > SIZE)) return '';
+    return pts.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join(' ');
+  });
 </script>
 
 <figure class="sky">
@@ -53,7 +66,10 @@
     {/if}
     <circle cx={c} cy={c} r={R} fill="#ffd76a" mask="url(#sun-mask)" class="sun" />
     <circle cx={c + sky.moonX * R} cy={c - sky.moonY * R} r={sky.moonSunRatio * R} fill="#11131c" opacity={sky.magnitude > 0 ? 1 : 0} />
-    {#if horizonY < SIZE}
+    {#if terrainLine}
+      <path d="{terrainLine} L{SIZE * 1.1},{SIZE + 2} L{-SIZE * 0.1},{SIZE + 2} Z" fill="#1c2a1f" opacity={ground.opacity} />
+      <path d={terrainLine} fill="none" stroke="#9fb29a" stroke-width="1" />
+    {:else if terrainLine === null && horizonY < SIZE}
       <rect x="0" y={Math.max(0, horizonY)} width={SIZE} height={SIZE} fill="#1c2a1f" opacity={ground.opacity} />
       <line x1="0" x2={SIZE} y1={horizonY} y2={horizonY} stroke="#9fb29a" stroke-width="1" />
     {/if}

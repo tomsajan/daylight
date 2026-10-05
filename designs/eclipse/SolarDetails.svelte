@@ -12,6 +12,7 @@
     greatestEclipse,
     localCircumstances,
     pathDistances,
+    phaseAt,
     skyView,
     type Contact,
     type LocalSolarEclipse,
@@ -21,6 +22,8 @@
   import { formatClock, formatDate } from '$core/time/format';
   import { formatCoordinates } from '$core/geo/place';
   import SkyView from './SkyView.svelte';
+  import Horizon from './Horizon.svelte';
+  import { terrain } from './terrain.svelte';
   import Timeline from './Timeline.svelte';
   import { TYPE_NAMES, coverage, describeLocal, formatSeconds } from './describe';
 
@@ -44,7 +47,6 @@
   const rows = $derived.by(() => {
     if (!local) return [];
     const r: [string, Contact][] = [];
-    const central = local.kind === 'total' ? 'Totality' : 'Annularity';
     if (local.c1) r.push(['Partial eclipse begins', local.c1]);
     if (local.sunrise) r.push(['Sunrise', local.sunrise]);
     if (local.c2) r.push([`${central} begins`, local.c2]);
@@ -65,6 +67,17 @@
     // The greatest eclipse gives way to the place's own marks when they would overlap.
     const near = (a: number, b: number) => Math.abs(a - b) < (span.end - span.start) * 0.05;
     return m.filter((x, i) => x.time >= span.start && x.time <= span.end && !(i === 0 && m.some((y, j) => j > 0 && near(x.time, y.time))));
+  });
+
+  /** The Sun's angular radius, near enough for setting it against the skyline. */
+  const SUN_RADIUS = 0.267;
+  const central = $derived(local?.kind === 'total' ? 'Totality' : 'Annularity');
+  const horizonMarks = $derived.by(() => {
+    const m: { time: number; label: string; short: string }[] = [];
+    if (local?.c1) m.push({ time: local.c1.time, label: 'Partial eclipse begins', short: 'C1' });
+    if (local?.max) m.push({ time: local.max.time, label: 'Maximum', short: 'Max' });
+    if (local?.c4) m.push({ time: local.c4.time, label: 'Partial eclipse ends', short: 'C4' });
+    return m;
   });
 
   function distanceText(d: PathDistances): string {
@@ -102,9 +115,24 @@
 <section class="now">
   <Timeline start={span.start} end={span.end} {marks} />
   {#if sky}
-    <SkyView {sky} />
+    <SkyView {sky} skyline={terrain.at(place)} />
   {:else if place && local?.visible && !during}
     <p class="muted">Outside the eclipse. Move the time into it to see the Sun from {place.name}.</p>
+  {/if}
+  {#if place && local?.visible && local.c1 && local.c4 && local.max}
+    <Horizon
+      {place}
+      body="Sun"
+      radius={SUN_RADIUS}
+      start={local.c1.time}
+      end={local.c4.time}
+      live={span}
+      timeMarks={marks}
+      position={(ms) => phaseAt(eclipse, place, ms)}
+      marks={horizonMarks}
+      main={local.c2 && local.c3 ? { start: local.c2.time, end: local.c3.time, name: central } : { start: local.max.time, end: local.max.time, name: 'Maximum' }}
+      bite={sky ? { x: sky.moonX, y: sky.moonY, ratio: sky.moonSunRatio } : null}
+    />
   {/if}
 </section>
 
