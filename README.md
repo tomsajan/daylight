@@ -64,6 +64,7 @@ marker to move it.
 
 Both:
 
+- On the map, a line from the place towards the Sun or the Moon at the chosen time: the way to look.
 - A timeline from the first contact anywhere to the last, with play at up to 30 minutes per second, and an option to
   keep the shadow (or the Moon) in view as it moves.
 - Night shading in twilight bands or smooth, and several background maps: streets, light, dark, satellite and
@@ -74,7 +75,8 @@ Both:
   the ground in the way is. Pointing at the picture tells, for that direction, how high the skyline is, how far and
   how high above sea level its ground, and when the Sun or Moon is there and how far above the horizon and the
   skyline. The picture can be dragged about, zoomed with the wheel, and enlarged to fill the window;
-  zoomed in, the skyline is worked out again in finer steps. Meant for choosing a spot together with a detailed
+  zoomed in, the skyline is worked out again in finer steps. The height of your eyes above the ground can be set
+  (a tower, a roof), the ground's height given by hand, and the terrain read more finely for one place. Meant for choosing a spot together with a detailed
   map: move the marker and see what the hills do.
 - In the sky picture, the horizon when the Sun or Moon is low, with the terrain's skyline; a slider sets how much
   the ground hides what is below it.

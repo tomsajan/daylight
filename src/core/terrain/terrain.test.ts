@@ -141,6 +141,27 @@ describe('skyline', () => {
     expect(skylineTiles({ ...here, from: 80, to: 100, reach: 20_000 }).some((t) => t.startsWith('9/'))).toBe(false);
   });
 
+  it('reads finer tiles on request, and takes the ground height it is given', () => {
+    const tiles = skylineTiles({ ...here, from: 80, to: 100, reach: 200_000, precise: true });
+    expect(tiles).toContain(tileAt(here.lat, here.lon, 15));
+    const near = destination(here.lat, here.lon, 90, 5_000);
+    expect(tiles).toContain(tileAt(near.lat, near.lon, 14));
+    const far = destination(here.lat, here.lon, 90, 150_000);
+    expect(tiles).toContain(tileAt(far.lat, far.lon, 10));
+    expect(tiles.some((t) => t.startsWith('13/') || t.startsWith('9/'))).toBe(false);
+    // The same peak either way; from a tower the plain's horizon dips.
+    const peak = destination(here.lat, here.lon, 90, 50_000);
+    const plain = skyline({ ...here, from: 85, to: 95, eye: 0 }, hill(peak, 2000, 3000));
+    const fine = skyline({ ...here, from: 85, to: 95, eye: 0, precise: true }, hill(peak, 2000, 3000));
+    expect(fine.precise).toBe(true);
+    expect(skylineAt(fine, 90)!.angle).toBeCloseTo(skylineAt(plain, 90)!.angle, 2);
+    const raised = skyline({ ...here, from: 85, to: 95, eye: 30, ground: 500 }, hill(peak, 2000, 3000));
+    expect(raised.ground).toBe(500);
+    expect(raised.eye).toBe(530);
+    expect(skylineAt(raised, 90)!.angle).toBeCloseTo(sightAngle(530, 2000, 50_000), 2);
+    expect(skylineAt(raised, 85)!.angle).toBeLessThan(-0.3);
+  });
+
   it('looks far for a low Sun and not for a high one', () => {
     expect(reachFor(1)).toBe(200_000);
     expect(reachFor(10)).toBeCloseTo(8000 / Math.tan(10 * RAD), 0);

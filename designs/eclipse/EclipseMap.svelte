@@ -1,27 +1,32 @@
 <!--
   The zoomable map: a background map (see basemaps.ts) with the eclipse drawn
   over it by EclipseLayer, a marker for the chosen place that can be dragged,
-  and a readout of the eclipse under the pointer. For a lunar eclipse, labels name the curves where
-  the Moon rises or sets at each contact.
+  a line from the place towards the Sun or the Moon at the current time, and a
+  readout of the eclipse under the pointer. For a lunar eclipse, labels name the
+  curves where the Moon rises or sets at each contact.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Map as MapLibreMap, Marker, NavigationControl, ScaleControl, setWorkerUrl, type LngLatBoundsLike } from 'maplibre-gl';
+  import { Map as MapLibreMap, Marker, NavigationControl, ScaleControl, setWorkerUrl, type GeoJSONSource, type LngLatBoundsLike } from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
   import { formatClock } from '$core/time/format';
   import {
+    globalSpan,
     localCircumstances,
     lunarContacts,
     lunarLocalCircumstances,
     lunarSpan,
+    moonPlace,
+    phaseAt,
     shadowView,
     subLunarPoint,
     type LunarEclipse,
     type SolarEclipse,
   } from '$core/eclipse';
+  import { destination } from '$core/terrain';
   import { EclipseLayer, type EclipseLayerOptions } from './eclipseLayer';
   import { BASEMAPS, mapyKey } from './basemaps';
   import { describeLocal, describeLunar } from './describe';
@@ -37,11 +42,13 @@
     /** Changes when the Mapy.com key does, to reload its tiles. */
     keyVersion?: number;
     layers: Omit<EclipseLayerOptions, 'dark'>;
+    /** Draw the line from the place towards the Sun or the Moon. */
+    sightLine?: boolean;
     onpick?: (lat: number, lon: number) => void;
     /** The marker is being dragged; onpick follows when it is dropped. */
     onmove?: (lat: number, lon: number) => void;
   }
-  let { eclipse, time, place, placeColor = '#f2a516', basemap, keyVersion = 0, layers, onpick, onmove }: Props = $props();
+  let { eclipse, time, place, placeColor = '#f2a516', basemap, keyVersion = 0, layers, sightLine = true, onpick, onmove }: Props = $props();
 
   let container: HTMLDivElement;
   let map: MapLibreMap | undefined = $state();
@@ -60,6 +67,62 @@
     m.addLayer(layer, firstLabel);
   }
 
+  // The way to look: from the place towards the Sun or the Moon, as far as where it stands overhead.
+  // Along the ground that is a great circle, 90° less its altitude long.
+  const sight = $derived.by(() => {
+    if (!eclipse || !place || !sightLine) return null;
+    const lunar = 'umbra' in eclipse;
+    const span = lunar ? lunarSpan(eclipse) : globalSpan(eclipse);
+    if (time < span.start || time > span.end) return null;
+    const at = lunar ? moonPlace(eclipse, place, time) : phaseAt(eclipse, place, time);
+    const length = (90 - at.altitude) * 111_195;
+    let lon = place.lon;
+    const line = Array.from({ length: 65 }, (_, i) => {
+      const p = destination(place.lat, place.lon, at.azimuth, (length * i) / 64);
+      // Longitudes carried on past the date line, so the line stays in one piece.
+      lon += ((p.lon - lon + 540) % 360) - 180;
+      return [lon, p.lat];
+    });
+    return { line, lunar, up: at.altitude > -0.8 };
+  });
+
+  function sightData() {
+    return {
+      type: 'Feature' as const,
+      properties: { body: sight?.lunar ? 'moon' : 'sun', up: sight?.up ?? true },
+      geometry: { type: 'LineString' as const, coordinates: sight?.line ?? [] },
+    };
+  }
+
+  /** Over everything, labels included: it is what one looks for. */
+  function addSight(m: MapLibreMap) {
+    if (m.getSource('sight')) return;
+    m.addSource('sight', { type: 'geojson', data: sightData() });
+    m.addLayer({
+      id: 'sight-casing',
+      type: 'line',
+      source: 'sight',
+      layout: { 'line-cap': 'round' },
+      paint: { 'line-color': '#1a1305', 'line-width': 5, 'line-opacity': ['case', ['get', 'up'], 0.55, 0.25] },
+    });
+    m.addLayer({
+      id: 'sight',
+      type: 'line',
+      source: 'sight',
+      layout: { 'line-cap': 'round' },
+      paint: {
+        'line-color': ['match', ['get', 'body'], 'moon', '#e8e6df', '#ffc531'],
+        'line-width': 2.5,
+        // Fainter while the Sun or the Moon is below the horizon.
+        'line-opacity': ['case', ['get', 'up'], 1, 0.4],
+      },
+    });
+  }
+  $effect(() => {
+    const data = sightData();
+    (map?.getSource('sight') as GeoJSONSource | undefined)?.setData(data);
+  });
+
   onMount(() => {
     const m = new MapLibreMap({
       container,
@@ -74,6 +137,7 @@
     m.on('style.load', () => {
       m.setProjection({ type: 'globe' });
       addLayer(m);
+      addSight(m);
     });
     m.on('click', (ev) => onpick?.(ev.lngLat.lat, ev.lngLat.lng));
     let pending = 0;

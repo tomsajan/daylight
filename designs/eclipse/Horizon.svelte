@@ -109,6 +109,7 @@
       to: Math.min(from + 360 - step, from + whole.width + 2),
       step,
       reach: reachFor(whole.lowest - 1),
+      ...terrain.options,
     };
   });
 
@@ -168,6 +169,9 @@
       to: v.centre + v.width,
       step: Math.max(0.02, v.width / 240),
       reach: s.reach,
+      eye: s.eye - s.ground,
+      ground: s.ground,
+      precise: s.precise,
     };
     let stale = false;
     const timer = setTimeout(async () => {
@@ -412,6 +416,16 @@
     void [place.lat, place.lon, start, end];
     custom = null;
   });
+  $effect(() => {
+    void [place.lat, place.lon];
+    terrain.moved();
+  });
+
+  /** A height typed in, metres; null for an empty or senseless one. */
+  function metres(text: string, least: number, most: number): number | null {
+    const v = Number(text.replace(',', '.'));
+    return text.trim() !== '' && Number.isFinite(v) && v >= least && v <= most ? v : null;
+  }
 </script>
 
 <svelte:window onkeydown={(ev) => enlarged && ev.key === 'Escape' && (enlarged = false)} />
@@ -421,7 +435,7 @@
     <div class="bar">
       <strong>
         Towards the {body}
-        {#if sky}<small>from {Math.round(sky.ground)} m above sea level</small>{/if}
+        {#if sky}<small>from {Math.round(sky.eye)} m above sea level</small>{/if}
       </strong>
       <span class="modes">
         <button class:on={!custom && !close} onclick={() => preset(false)}>Whole eclipse</button>
@@ -514,6 +528,34 @@
       <div class="readout">
         {#each readout as line (line)}<p>{line}</p>{/each}
       </div>
+      {#if terrain.on}
+        <div class="setup">
+          <label title="How high your eyes are above the ground: on a tower or a roof, its height">
+            Eyes
+            <input
+              class="dl-input"
+              inputmode="decimal"
+              value={terrain.eye}
+              onchange={(ev) => terrain.setEye(metres(ev.currentTarget.value, 0, 1000) ?? 2)}
+              aria-label="Eye height above the ground, metres"
+            /> m up
+          </label>
+          <label title="The ground's height above sea level here, if you know it better than the terrain data; empty to take it from the data">
+            Ground
+            <input
+              class="dl-input"
+              inputmode="decimal"
+              value={terrain.ground ?? ''}
+              placeholder={sky ? String(Math.round(sky.ground)) : 'auto'}
+              onchange={(ev) => (terrain.ground = metres(ev.currentTarget.value, -430, 9000))}
+              aria-label="Ground height above sea level, metres"
+            /> m
+          </label>
+          <label title="Reads the terrain more finely for this place: several times the download and the wait. It tells more only where the survey behind the data is finer than 30 m, as in New Zealand.">
+            <input type="checkbox" autocomplete="off" bind:checked={terrain.precise} /> Precise
+          </label>
+        </div>
+      {/if}
       {#if !terrain.on}
         Level ground: the terrain is switched off.
       {:else if sky && verdict}
@@ -522,7 +564,7 @@
           <p><button class="link" onclick={() => app.setTime(e.time)}>{e.text}</button></p>
         {/each}
         <p class="small">
-          Drag the picture to move it, zoom with the wheel. Seen from {Math.round(sky.ground)} m above sea level, eyes 2 m up, looking out to {km(sky.reach)}. Bare ground only: trees and buildings
+          Drag the picture to move it, zoom with the wheel. Seen from {Math.round(sky.ground)} m above sea level, eyes {+(sky.eye - sky.ground).toFixed(1)} m up, looking out to {km(sky.reach)}{sky.precise ? ', read finely' : ''}. Bare ground only: trees and buildings
           are not in the data, sharp peaks come out a little low, and ground within a few hundred metres is rough. Heights here are as seen,
           lifted by refraction: up to half a degree at the horizon. {TERRAIN_CREDIT}.
         </p>
@@ -568,6 +610,19 @@
     margin-left: 6px;
     font-weight: normal;
     color: var(--muted);
+  }
+  .setup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    margin-bottom: 6px;
+  }
+  .setup input:not([type='checkbox']) {
+    width: 4.2em;
+    padding: 1px 5px;
+    font-size: 13px;
+    text-align: right;
   }
   .readout {
     min-height: 4.4em;

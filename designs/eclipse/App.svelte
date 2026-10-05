@@ -111,6 +111,7 @@
   let basemap = $state(stored('daylight.eclipse.basemap') ?? 'streets');
   let layers = $state({ path: true, shadow: true, night: true });
   let follow = $state(false);
+  let sightLine = $state(stored('daylight.eclipse.sight') !== 'off');
   // Night shading off, or on with its twilight in bands or smooth (the globe designs' setting).
   const night = {
     get: () => (layers.night ? settings.globe.twilightStyle : 'off'),
@@ -134,6 +135,7 @@
   $effect(() => {
     try {
       localStorage.setItem('daylight.eclipse.basemap', basemap);
+      localStorage.setItem('daylight.eclipse.sight', sightLine ? 'on' : 'off');
     } catch {
       // Not remembered.
     }
@@ -311,6 +313,7 @@
       {basemap}
       {keyVersion}
       layers={{ ...layers, smooth: settings.globe.twilightStyle === 'smooth' }}
+      {sightLine}
       onpick={(lat, lon) => app.pickPoint(lat, lon)}
       onmove={(lat, lon) => app.movePoint(lat, lon)}
     />
@@ -328,6 +331,9 @@
         <option value="off">No night</option>
       </select>
       <label><input type="checkbox" autocomplete="off" bind:checked={follow} /> Follow the {lunar ? 'Moon' : 'shadow'}</label>
+      <label title="A line from the place towards the {lunar ? 'Moon' : 'Sun'} at the chosen time">
+        <input type="checkbox" autocomplete="off" bind:checked={sightLine} /> Line to the {lunar ? 'Moon' : 'Sun'}
+      </label>
       {#if needsKey}
         <form
           class="key"
@@ -349,10 +355,12 @@
         <span><i class="horizon"></i>Moon on the horizon now</span>
         <span><i class="shade"></i>Less of the eclipse seen</span>
         <span><i class="line"></i>Moon rising or setting at a contact</span>
+        {#if place && sightLine}<span><i class="sight moon"></i>Towards the Moon now</span>{/if}
       {:else}
         <span><i class="band"></i>Path of {eclipse.type === 'A' ? 'annularity' : 'totality'}</span>
         <span><i class="line"></i>Limits, central line</span>
         <span><i class="thin"></i>Partial: every 10% of the Sun's diameter</span>
+        {#if place && sightLine}<span><i class="sight"></i>Towards the Sun now</span>{/if}
       {/if}
     </div>
   </main>
@@ -560,6 +568,15 @@
   }
   .legend .shade {
     background: rgb(20 20 26 / 0.45);
+  }
+  .legend .sight {
+    height: 3px;
+    vertical-align: 3px;
+    background: #ffc531;
+    box-shadow: 0 0 0 1px rgb(26 19 5 / 0.55);
+  }
+  .legend .sight.moon {
+    background: #e8e6df;
   }
   .legend .thin {
     height: 1px;
