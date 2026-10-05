@@ -312,6 +312,7 @@
       {keyVersion}
       layers={{ ...layers, smooth: settings.globe.twilightStyle === 'smooth' }}
       onpick={(lat, lon) => app.pickPoint(lat, lon)}
+      onmove={(lat, lon) => app.movePoint(lat, lon)}
     />
     <div class="tools">
       <select class="dl-input" bind:value={basemap} aria-label="Background map">

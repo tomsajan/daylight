@@ -119,6 +119,12 @@ class AppState {
     this.updatePlace(place.id, named);
   }
 
+  /** The selected place while it is dragged on a map: moved, and named by its coordinates until it is dropped. */
+  movePoint(lat: number, lon: number): void {
+    const { id: _, ...moved } = makePlace(lat, lon);
+    if (this.selected) this.updatePlace(this.selected.id, moved);
+  }
+
   updatePlace(id: string, patch: Partial<Omit<Place, 'id'>>): void {
     const i = this.places.findIndex((p) => p.id === id);
     if (i >= 0) this.places[i] = { ...this.places[i], ...patch };

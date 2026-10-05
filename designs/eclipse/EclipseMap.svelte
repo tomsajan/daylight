@@ -1,7 +1,7 @@
 <!--
   The zoomable map: a background map (see basemaps.ts) with the eclipse drawn
-  over it by EclipseLayer, a marker for the chosen place, and a readout of the
-  eclipse under the pointer. For a lunar eclipse, labels name the curves where
+  over it by EclipseLayer, a marker for the chosen place that can be dragged,
+  and a readout of the eclipse under the pointer. For a lunar eclipse, labels name the curves where
   the Moon rises or sets at each contact.
 -->
 <script lang="ts">
@@ -38,13 +38,17 @@
     keyVersion?: number;
     layers: Omit<EclipseLayerOptions, 'dark'>;
     onpick?: (lat: number, lon: number) => void;
+    /** The marker is being dragged; onpick follows when it is dropped. */
+    onmove?: (lat: number, lon: number) => void;
   }
-  let { eclipse, time, place, placeColor = '#f2a516', basemap, keyVersion = 0, layers, onpick }: Props = $props();
+  let { eclipse, time, place, placeColor = '#f2a516', basemap, keyVersion = 0, layers, onpick, onmove }: Props = $props();
 
   let container: HTMLDivElement;
   let map: MapLibreMap | undefined = $state();
   const layer = new EclipseLayer();
   let marker: Marker | undefined;
+  /** While the marker is dragged it leads and the place follows, not the other way round. */
+  let dragging = false;
   let hover = $state<{ x: number; y: number; text: string } | null>(null);
 
   const base = $derived(BASEMAPS.find((b) => b.id === basemap) ?? BASEMAPS[0]);
@@ -120,8 +124,26 @@
       marker = undefined;
       return;
     }
-    if (!marker) marker = new Marker({ color: placeColor }).setLngLat([place.lon, place.lat]).addTo(map);
-    else marker.setLngLat([place.lon, place.lat]);
+    if (!marker) {
+      const mk = new Marker({ color: placeColor, draggable: true }).setLngLat([place.lon, place.lat]).addTo(map);
+      mk.getElement().title = 'Drag to move';
+      let pending = 0;
+      mk.on('dragstart', () => (dragging = true));
+      mk.on('drag', () => {
+        cancelAnimationFrame(pending);
+        pending = requestAnimationFrame(() => {
+          const at = mk.getLngLat();
+          onmove?.(at.lat, at.lng);
+        });
+      });
+      mk.on('dragend', () => {
+        cancelAnimationFrame(pending);
+        dragging = false;
+        const at = mk.getLngLat();
+        onpick?.(at.lat, at.lng);
+      });
+      marker = mk;
+    } else if (!dragging) marker.setLngLat([place.lon, place.lat]);
   });
 
   // Lunar eclipse: each contact's curve is the Moon's horizon at that instant, a circle 90° from
@@ -201,6 +223,16 @@
   .map {
     position: absolute;
     inset: 0;
+  }
+  /* A crosshair to place the point with; the hand only while the map is being moved. */
+  .map :global(.maplibregl-canvas-container.maplibregl-interactive) {
+    cursor: crosshair;
+  }
+  .map :global(.maplibregl-canvas-container.maplibregl-interactive:active) {
+    cursor: grabbing;
+  }
+  .map :global(.maplibregl-marker[aria-label='Map marker']) {
+    cursor: move;
   }
   .mapy-logo {
     position: absolute;
