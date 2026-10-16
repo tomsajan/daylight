@@ -3,6 +3,7 @@
   directly to the persisted `settings` store, so changes apply immediately.
 -->
 <script lang="ts">
+  import OfflineStorage from '$core/components/OfflineStorage.svelte';
   import { settings, resetSettings, type Settings } from '$core/state/settings.svelte';
   import { TIME_SCALE_LABELS, type TimeScaleKind } from '$core/time/timescale';
   import DesignPicker from './DesignPicker.svelte';
@@ -125,6 +126,11 @@
       <legend>Design</legend>
       <p class="help">The same app in other designs. Your places, date, time and preferences come along.</p>
       <div class="inline"><DesignPicker label="Switch to" /></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Offline</legend>
+      <OfflineStorage />
     </fieldset>
 
     <footer>

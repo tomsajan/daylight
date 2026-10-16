@@ -8,6 +8,7 @@
   import { TIME_SCALE_LABELS, type TimeScaleKind } from '$core/time/timescale';
   import Icon from './Icon.svelte';
   import DesignSwitcher from '$core/components/DesignSwitcher.svelte';
+  import OfflineStorage from '$core/components/OfflineStorage.svelte';
 
   interface Props {
     onclose: () => void;
@@ -131,6 +132,11 @@
         <span class="track"></span><span>{t.label}</span>
       </label>
     {/each}
+  </section>
+
+  <section>
+    <h3>Offline</h3>
+    <OfflineStorage />
   </section>
 
   <button type="button" class="o-btn reset" onclick={resetSettings}><Icon name="reset" /> Reset all settings</button>

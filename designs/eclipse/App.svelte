@@ -37,6 +37,7 @@
   import SolarDetails from './SolarDetails.svelte';
   import LunarDetails from './LunarDetails.svelte';
   import { BASEMAPS, mapyKey, saveMapyKey } from './basemaps';
+  import OfflineStorage from '$core/components/OfflineStorage.svelte';
   import { LUNAR_TYPE_NAMES, TYPE_NAMES, coverage } from './describe';
 
   type Eclipse = SolarEclipse | LunarEclipse;
@@ -292,6 +293,7 @@
     {:else}
       <SolarDetails {eclipse} {place} known={seen?.get(eclipse.id) as LocalSolarEclipse | undefined} onfly={fly} />
     {/if}
+    <div class="offline"><OfflineStorage /></div>
   </aside>
 
   <main class="map-wrap">
@@ -408,6 +410,12 @@
     align-content: start;
     gap: 14px;
     border-right: 1px solid var(--border);
+  }
+  .offline {
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
   }
   header {
     display: flex;

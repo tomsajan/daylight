@@ -19,6 +19,8 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
 - **Eclipses:** solar and lunar eclipses 1980-2100 on a map you can zoom down to street level, with what each looks
   like from any place (see below).
 - Works on phones; the whole state (places, time, speed) is in the URL, so a link shows the same view.
+- **Works offline**, e.g. on a plane: install it from Chrome's menu (Add to Home screen / Install app) or just open
+  it once, and it opens without a network after that. See [Offline](#offline).
 
 ### Two apps
 
@@ -99,6 +101,21 @@ Mapy.com needs an API key, free for modest use at [developer.mapy.com](https://d
 on the page, where it stays in that browser, or build with `VITE_MAPY_API_KEY=...`. A key built into a public site
 should be restricted to that site's address in the Mapy.com account.
 
+## Offline
+
+A service worker (built by [vite-plugin-pwa](https://vite-pwa-org.netlify.app) with Workbox) keeps the whole site on
+the device after the first visit, about 6 MB, so every page opens and works without a network. With the manifest
+it can be installed as an app; a new version is picked up on the next visit online.
+
+Map and terrain tiles are kept as they are looked at, never fetched ahead, so offline the Eclipses map shows the
+areas seen before. They are capped (1000 map tiles and 400 terrain tiles, at most 30 days old; oldest go first)
+and the browser may clear them when the device runs short of space. Settings in every design show how much is
+stored, with a button that clears the tiles. Place search needs the network; offline, a place can still be picked
+on the globe or map, by coordinates, or by the device's location.
+
+The service worker is only in the production build: `npm run build && npm run preview` to try it locally.
+`scripts/make-icons.py` draws the app icons in `public/`.
+
 ## Running locally
 
 Node.js lives inside a Python virtualenv in the project (via `nodeenv`), so nothing is installed system-wide.
@@ -136,9 +153,12 @@ src/core/            shared engine, used by every design
   globe/             Three.js globe renderer + Svelte wrapper
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
   components/        place search, time and speed controls, settings panel, design and app switchers, splitter
+  offline/           service worker registration, offline storage size and clearing
 designs/<name>/      one folder per design; each is its own page at /designs/<name>/
 designs/eclipse/     the Eclipses page: MapLibre map, the eclipse layer drawn per pixel, panels and sky views
-scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/
+scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/;
+                     make-icons.py: draws the app icons
+public/              web app manifest and icons
 index.html           start page: the two apps and Daylight's designs
 ```
 

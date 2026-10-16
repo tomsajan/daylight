@@ -6,6 +6,12 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "source .venv/bin/activate && npx vite --port 5173 --strictPort"],
       "port": 5173
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "source .venv/bin/activate && npx vite preview --port 4173 --strictPort"],
+      "port": 4173
     }
   ]
 }

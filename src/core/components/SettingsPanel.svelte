@@ -5,6 +5,7 @@
 <script lang="ts">
   import { settings, resetSettings } from '../state/settings.svelte';
   import { TIME_SCALE_LABELS, type TimeScaleKind } from '../time/timescale';
+  import OfflineStorage from './OfflineStorage.svelte';
 
   interface Props {
     sections?: { time?: boolean; sun?: boolean; chart?: boolean; globe?: boolean; appearance?: boolean };
@@ -115,6 +116,11 @@
       </div>
     </fieldset>
   {/if}
+
+  <fieldset>
+    <legend>Offline</legend>
+    <OfflineStorage />
+  </fieldset>
 
   <button type="button" class="dl-reset" onclick={resetSettings}>Reset to defaults</button>
 </div>
