@@ -19,8 +19,8 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
 - **Eclipses:** solar and lunar eclipses 1980-2100 on a map you can zoom down to street level, with what each looks
   like from any place (see below).
 - Works on phones; the whole state (places, time, speed) is in the URL, so a link shows the same view.
-- **Works offline**, e.g. on a plane: install it from Chrome's menu (Add to Home screen / Install app) or just open
-  it once, and it opens without a network after that. See [Offline](#offline).
+- **Works offline**, e.g. on a plane: install it with the Install button in the settings (Chrome, Edge) or from the
+  browser's menu, or just open it once, and it opens without a network after that. See [Offline](#offline).
 
 ### Two apps
 

@@ -4,11 +4,16 @@
  * looked at, so the app opens and works without a network.
  */
 
+import { watchInstall } from './install.svelte';
+
+export { install, installApp } from './install.svelte';
+
 /** The caches of things fetched from elsewhere; the app's own files are kept apart and not cleared. */
 const CLEARABLE_CACHES = ['map-tiles', 'terrain-tiles', 'map-styles'];
 
 /** Registers the service worker; in a production build only, so development always runs fresh code. */
 export function registerOffline(): void {
+  watchInstall();
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
   // The worker sits at the site's root, next to the manifest every page links to.
   const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');

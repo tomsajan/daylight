@@ -1,9 +1,10 @@
 <!--
   How much the site keeps on the device for offline use, with a button that
-  drops the kept map and terrain tiles. Takes the look of the settings it sits in.
+  drops the kept map and terrain tiles, and one that installs the site as an app
+  where the browser offers that. Takes the look of the settings it sits in.
 -->
 <script lang="ts">
-  import { offlineUsage, clearOfflineTiles, formatBytes } from '../offline';
+  import { offlineUsage, clearOfflineTiles, formatBytes, install, installApp } from '../offline';
 
   let usage = $state<number | undefined>();
   let clearing = $state(false);
@@ -24,6 +25,12 @@
   });
 </script>
 
+{#if install.available}
+  <div class="dl-offline">
+    <span>Install as an app <small>its own icon and window, and it opens without a network</small></span>
+    <button type="button" onclick={installApp}>Install</button>
+  </div>
+{/if}
 {#if usage !== undefined}
   <div class="dl-offline">
     <span>Offline storage: {formatBytes(usage)} <small>the app and the map tiles you have looked at</small></span>
@@ -37,6 +44,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+  }
+  .dl-offline + .dl-offline {
+    margin-top: 6px;
   }
   .dl-offline span {
     display: flex;
