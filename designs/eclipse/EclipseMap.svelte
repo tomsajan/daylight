@@ -28,7 +28,7 @@
   } from '$core/eclipse';
   import { destination } from '$core/terrain';
   import { EclipseLayer, type EclipseLayerOptions } from './eclipseLayer';
-  import { BASEMAPS, mapyKey } from './basemaps';
+  import { BASEMAPS, mapyKey, offlineStyle } from './basemaps';
   import { describeLocal, describeLunar } from './describe';
 
   setWorkerUrl(workerUrl);
@@ -59,6 +59,12 @@
   let hover = $state<{ x: number; y: number; text: string } | null>(null);
 
   const base = $derived(BASEMAPS.find((b) => b.id === basemap) ?? BASEMAPS[0]);
+
+  // Without a network, or when the map style does not load, the background map is
+  // the offline one: kept tiles over the world map that ships with the app.
+  let offline = $state(typeof navigator !== 'undefined' && !navigator.onLine);
+  let styleFailed = $state(false);
+  const useOffline = $derived(offline || styleFailed);
 
   /** Under the map's labels, so place names stay readable. */
   function addLayer(m: MapLibreMap) {
@@ -126,7 +132,8 @@
   onMount(() => {
     const m = new MapLibreMap({
       container,
-      style: base.style(mapyKey()),
+      // Offline, the style is set once it is put together, by the effect below.
+      style: useOffline ? { version: 8, sources: {}, layers: [] } : base.style(mapyKey()),
       center: [place?.lon ?? 0, place?.lat ?? 20],
       zoom: 1.6,
       attributionControl: { compact: true },
@@ -138,6 +145,9 @@
       m.setProjection({ type: 'globe' });
       addLayer(m);
       addSight(m);
+    });
+    m.on('error', () => {
+      if (!m.isStyleLoaded()) styleFailed = true;
     });
     m.on('click', (ev) => onpick?.(ev.lngLat.lat, ev.lngLat.lng));
     let pending = 0;
@@ -166,15 +176,21 @@
     };
   });
 
-  // A new background map: the style is replaced, and style.load puts the eclipse back.
+  // A new background map, or going offline or back online: the style is replaced,
+  // and style.load puts the eclipse back.
   let shownStyle = '';
   $effect(() => {
-    const key = `${base.id}|${keyVersion}`;
-    if (!map || key === shownStyle) return;
+    const key = `${base.id}|${keyVersion}|${useOffline}`;
+    const m = map;
+    if (!m || key === shownStyle) return;
     const first = !shownStyle;
     shownStyle = key;
     // A full load rather than a diff, so style.load fires and the eclipse goes back on.
-    if (!first) map.setStyle(base.style(mapyKey()), { diff: false });
+    if (useOffline) {
+      offlineStyle(base, mapyKey()).then((style) => {
+        if (shownStyle === key) m.setStyle(style, { diff: false });
+      });
+    } else if (!first) m.setStyle(base.style(mapyKey()), { diff: false });
   });
 
   $effect(() => layer.setOptions({ ...layers, dark: base.dark }));
@@ -271,6 +287,14 @@
     map?.jumpTo({ center: [lon, lat] });
   }
 </script>
+
+<svelte:window
+  ononline={() => {
+    offline = false;
+    styleFailed = false;
+  }}
+  onoffline={() => (offline = true)}
+/>
 
 <div class="map" bind:this={container}>
   {#if base.mapy}

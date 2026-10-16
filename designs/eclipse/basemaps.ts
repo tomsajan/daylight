@@ -6,7 +6,7 @@
  * site's address in the Mapy.com developer account.
  */
 
-import type { StyleSpecification } from 'maplibre-gl';
+import type { GeoJSONSourceSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
 
 export interface Basemap {
   id: string;
@@ -65,6 +65,41 @@ export const BASEMAPS: Basemap[] = [
   { id: 'mapy-basic', name: 'Mapy.com basic', dark: false, mapy: true, style: mapy('basic', true) },
   { id: 'mapy-aerial', name: 'Mapy.com aerial', dark: true, mapy: true, style: mapy('aerial', false) },
 ];
+
+/**
+ * The background map without a network: the style as it was kept (see the service
+ * worker in vite.config.ts) laid over the countries of the world, which ship with
+ * the app. Where tiles were kept they show; elsewhere the plain world map does.
+ * Without a kept style, the world map alone.
+ */
+export async function offlineStyle(basemap: Basemap, key: string): Promise<StyleSpecification> {
+  const world = (await import('./data/world.json')).default as GeoJSONSourceSpecification['data'];
+  const spec = basemap.style(key);
+  let style: StyleSpecification | undefined;
+  try {
+    style = typeof spec === 'string' ? await (await fetch(spec)).json() : structuredClone(spec);
+  } catch {
+    // Never loaded online: the world map alone.
+  }
+  const own = style?.layers.find((l) => l.type === 'background');
+  const plain = basemap.dark
+    ? { sea: '#16222c', land: '#2c3438', border: '#4b565d' }
+    : { sea: '#c6dbe5', land: '#f2efe7', border: '#a8a69c' };
+  // A vector map draws land as its background, so the world's land takes that colour.
+  const land = typeof spec === 'string' && own?.paint?.['background-color'] ? own.paint['background-color'] : plain.land;
+  const under: LayerSpecification[] = [
+    { id: 'offline-sea', type: 'background', paint: { 'background-color': plain.sea } },
+    { id: 'offline-land', type: 'fill', source: 'offline-world', paint: { 'fill-color': land } },
+    { id: 'offline-borders', type: 'line', source: 'offline-world', paint: { 'line-color': plain.border, 'line-width': 0.6 } },
+  ];
+  const source = { type: 'geojson' as const, data: world };
+  if (!style) return { version: 8, glyphs: GLYPHS, sources: { 'offline-world': source }, layers: under };
+  return {
+    ...style,
+    sources: { ...style.sources, 'offline-world': source },
+    layers: [...under, ...style.layers.filter((l) => l.type !== 'background')],
+  };
+}
 
 const KEY_STORAGE = 'daylight.mapyApiKey';
 let enteredKey = '';

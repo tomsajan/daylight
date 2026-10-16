@@ -108,7 +108,8 @@ the device after the first visit, about 6 MB, so every page opens and works with
 it can be installed as an app; a new version is picked up on the next visit online.
 
 Map and terrain tiles are kept as they are looked at, never fetched ahead, so offline the Eclipses map shows the
-areas seen before. They are capped (1000 map tiles and 400 terrain tiles, at most 30 days old; oldest go first)
+areas seen before, over a plain map of the world's countries that ships with the app (Natural Earth, simplified to
+about 3 km; `node scripts/fetch-world.mjs` writes it). They are capped (1000 map tiles and 400 terrain tiles, at most 30 days old; oldest go first)
 and the browser may clear them when the device runs short of space. Settings in every design show how much is
 stored, with a button that clears the tiles. Place search needs the network; offline, a place can still be picked
 on the globe or map, by coordinates, or by the device's location.
@@ -157,7 +158,7 @@ src/core/            shared engine, used by every design
 designs/<name>/      one folder per design; each is its own page at /designs/<name>/
 designs/eclipse/     the Eclipses page: MapLibre map, the eclipse layer drawn per pixel, panels and sky views
 scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/;
-                     make-icons.py: draws the app icons
+                     fetch-world.mjs: the offline world map; make-icons.py: draws the app icons
 public/              web app manifest and icons
 index.html           start page: the two apps and Daylight's designs
 ```
@@ -203,6 +204,7 @@ the skyline, go and look.
   (© [OpenMapTiles](https://openmaptiles.org), data © OpenStreetMap contributors),
   [Sentinel-2 cloudless](https://s2maps.eu) by EOX (contains modified Copernicus Sentinel data) and
   [Mapy.com](https://mapy.com) (© Seznam.cz a.s. and others).
+- Offline world map: [Natural Earth](https://www.naturalearthdata.com) (public domain).
 - Terrain: [Mapzen terrain tiles](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) hosted as AWS
   open data, from SRTM, GMTED2010, ETOPO1 and national elevation models.
 - Built with [Svelte](https://svelte.dev), [Three.js](https://threejs.org) and [Vite](https://vite.dev).
