@@ -38,7 +38,7 @@ export interface CameraSettings {
   focal: number;
   /** Aperture, f-number. */
   fNumber: number;
-  /** Turn of the frame on the sky: 0 has the long side east-west, degrees. */
+  /** The frame's angle on the sky: the position angle of its top edge, east of north, degrees (0: long side east-west). */
   rotation: number;
 }
 

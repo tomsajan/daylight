@@ -309,7 +309,7 @@
 
     <CameraPanel />
 
-    <TargetList {rows} darkMs={Math.max(darkMs, 1)} {selectedId} {scale} hourCycle={hc} onselect={select} />
+    <TargetList {rows} darkMs={Math.max(darkMs, 1)} {selectedId} noDark={darkMs === 0} {scale} hourCycle={hc} onselect={select} />
 
     <footer class="credits">
       <p>

@@ -14,11 +14,13 @@
     /** The night's moonless dark, ms, for the bars' scale. */
     darkMs: number;
     selectedId: string | null;
+    /** The night never gets dark (white nights, midnight sun). */
+    noDark?: boolean;
     scale: TimeScale;
     hourCycle: HourCycle;
     onselect: (id: string) => void;
   }
-  let { rows, darkMs, selectedId, scale, hourCycle, onselect }: Props = $props();
+  let { rows, darkMs, selectedId, noDark = false, scale, hourCycle, onselect }: Props = $props();
 
   let query = $state('');
   let showAll = $state(false);
@@ -79,7 +81,7 @@
         </button>
       </li>
     {:else}
-      <li class="empty">Nothing matches.</li>
+      <li class="empty">{noDark && !query ? 'It does not get dark tonight: nothing to rank.' : 'Nothing matches.'}</li>
     {/each}
   </ol>
   {#if !query && filtered.length > shown.length}

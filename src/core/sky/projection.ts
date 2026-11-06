@@ -92,20 +92,22 @@ export function toAzAlt(h: Vec3): { az: number; alt: number } {
 
 /**
  * The outline of a camera frame on the sky as J2000 unit vectors: a rectangle of `width` × `height`
- * degrees on the plane touching the sky at the target (a lens draws straight lines straight),
- * its long side turned `rotation` degrees from east-west towards north-south.
+ * degrees on the plane touching the sky at the target (a lens draws straight lines straight).
+ * `angle` is the position angle of the frame's top edge, east of north, as astrophotographers
+ * give it: at 0 the top points north and the long side runs east-west; at 90 the top points east.
  */
-export function frameOutline(target: Vec3, width: number, height: number, rotation: number, perSide = 24): Vec3[][] {
+export function frameOutline(target: Vec3, width: number, height: number, angle: number, perSide = 24): Vec3[][] {
   const t = norm(target);
   // East and north at the target, in J2000.
   let east: Vec3 = cross([0, 0, 1], t);
   if (Math.hypot(...east) < 1e-9) east = [0, 1, 0];
   east = norm(east);
   const north = cross(t, east);
-  const c = Math.cos(rotation * RAD);
-  const s = Math.sin(rotation * RAD);
-  const ax: Vec3 = [east[0] * c + north[0] * s, east[1] * c + north[1] * s, east[2] * c + north[2] * s];
-  const ay: Vec3 = [north[0] * c - east[0] * s, north[1] * c - east[1] * s, north[2] * c - east[2] * s];
+  const c = Math.cos(angle * RAD);
+  const s = Math.sin(angle * RAD);
+  // Up turns from north towards east; across turns with it, from east towards south.
+  const ay: Vec3 = [north[0] * c + east[0] * s, north[1] * c + east[1] * s, north[2] * c + east[2] * s];
+  const ax: Vec3 = [east[0] * c - north[0] * s, east[1] * c - north[1] * s, east[2] * c - north[2] * s];
   const hx = Math.tan((width * RAD) / 2);
   const hy = Math.tan((height * RAD) / 2);
   const at = (u: number, v: number): Vec3 => norm([t[0] + ax[0] * u * hx + ay[0] * v * hy, t[1] + ax[1] * u * hx + ay[1] * v * hy, t[2] + ax[2] * u * hx + ay[2] * v * hy]);

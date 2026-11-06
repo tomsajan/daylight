@@ -35,9 +35,9 @@
       Aperture, f/
       <input class="dl-input" type="number" min="0.95" max="32" step="0.1" bind:value={cam.fNumber} />
     </label>
-    <label class="wide">
-      Frame turned {cam.rotation}°
-      <input type="range" min="0" max="180" step="1" bind:value={cam.rotation} />
+    <label class="wide" title="The position angle of the frame's top edge, east of north: at 0° the long side runs east-west">
+      Frame angle {cam.rotation}° <small>(top edge, east of north)</small>
+      <input type="range" min="0" max="179" step="1" bind:value={cam.rotation} />
     </label>
   </div>
   <p class="out">
@@ -64,6 +64,9 @@
   input[type='number'] {
     width: 100%;
     box-sizing: border-box;
+  }
+  small {
+    font-size: 11px;
   }
   .out {
     margin: 8px 0 0;

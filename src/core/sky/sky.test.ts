@@ -179,6 +179,22 @@ describe('sky chart projection', () => {
   });
 });
 
+describe('frame angle', () => {
+  it('turns the top of the frame from north towards east', () => {
+    const ra = 83.8;
+    const dec = -5.4;
+    const pa = (angle: number) => {
+      const top = frameOutline(unitVector(ra, dec), 10, 6, angle)[1][0];
+      const tRa = (Math.atan2(top[1], top[0]) * 180) / Math.PI;
+      const tDec = (Math.asin(top[2]) * 180) / Math.PI;
+      return (((Math.atan2((tRa - ra) * Math.cos((dec * Math.PI) / 180), tDec - dec) * 180) / Math.PI) + 360) % 360;
+    };
+    expect(pa(0)).toBeCloseTo(0, 0);
+    expect(pa(90)).toBeCloseTo(90, 0);
+    expect(pa(30)).toBeCloseTo(30, 0);
+  });
+});
+
 describe('object outlines', () => {
   it('turns an ellipse to its position angle, east of north', () => {
     const ra = 10.68;
