@@ -18,13 +18,19 @@ const designPages = Object.fromEntries(
 const DAY = 24 * 3600;
 
 /**
- * What the app fetches from elsewhere, kept as it is used and never fetched ahead.
+ * What the app fetches from elsewhere, and its own largest images, kept as they are used and never fetched ahead.
  * Tiles are capped by count and age, oldest dropped first, so the store stays within
  * some tens of MB; the browser may also clear it when the device runs short of space.
  * Place search is not kept: it needs the network.
  * The cache names are listed in src/core/offline/storage.ts, which clears them.
  */
 const RUNTIME_CACHING = [
+  {
+    // The globe's sharper day and night images, on devices that load them; their names change with their content.
+    urlPattern: /\/assets\/[\w-]+-8k-[\w-]+\.jpg$/,
+    handler: 'CacheFirst' as const,
+    options: { cacheName: 'globe-images', expiration: { maxEntries: 4, purgeOnQuotaError: true } },
+  },
   {
     urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,
     handler: 'StaleWhileRevalidate' as const,
@@ -70,6 +76,9 @@ export default defineConfig({
       manifest: false,
       workbox: {
         globPatterns: ['**/*.{html,js,css,json,jpg,png,svg,webmanifest}'],
+        // The globe's 8192 wide images are kept when first loaded instead (see RUNTIME_CACHING):
+        // a device that cannot take them uses the 4096 wide ones, which are here.
+        globIgnores: ['**/*-8k-*.jpg'],
         // The largest chunk (three.js) and the globe's day texture.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // The state is in the query string: any page with any query is the cached page.

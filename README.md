@@ -104,7 +104,7 @@ should be restricted to that site's address in the Mapy.com account.
 ## Offline
 
 A service worker (built by [vite-plugin-pwa](https://vite-pwa-org.netlify.app) with Workbox) keeps the whole site on
-the device after the first visit, about 6 MB, so every page opens and works without a network. With the manifest
+the device after the first visit, about 5.5 MB, so every page opens and works without a network. With the manifest
 it can be installed as an app; a new version is picked up on the next visit online.
 
 Map and terrain tiles are kept as they are looked at, never fetched ahead, so offline the Eclipses map shows the
@@ -113,6 +113,11 @@ about 3 km; `node scripts/fetch-world.mjs` writes it). They are capped (1000 map
 and the browser may clear them when the device runs short of space. Settings in every design show how much is
 stored, with a button that clears the tiles. Place search needs the network; offline, a place can still be picked
 on the globe or map, by coordinates, or by the device's location.
+
+The globe's day and night images come in two sizes. Where the graphics card takes 8192 wide images (and the device
+does not report less than 4 GB of memory) it loads those, about 6 MB together, and keeps them when first loaded;
+the 4096 wide ones are among the files kept ahead, so the globe opens offline everywhere and stands in when the
+larger ones fail to load.
 
 The service worker is only in the production build: `npm run build && npm run preview` to try it locally.
 `scripts/make-icons.py` draws the app icons in `public/`.
@@ -158,7 +163,8 @@ src/core/            shared engine, used by every design
 designs/<name>/      one folder per design; each is its own page at /designs/<name>/
 designs/eclipse/     the Eclipses page: MapLibre map, the eclipse layer drawn per pixel, panels and sky views
 scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/;
-                     fetch-world.mjs: the offline world map; make-icons.py: draws the app icons
+                     fetch-world.mjs: the offline world map; make-icons.py: draws the app icons;
+                     make-earth-textures.py: the globe's day and night images from NASA's originals
 public/              web app manifest and icons
 index.html           start page: the two apps and Daylight's designs
 ```
@@ -193,8 +199,10 @@ the skyline, go and look.
 
 ## Credits
 
-- Earth imagery: NASA Blue Marble and Black Marble (public domain), as packaged by
-  [three-globe](https://github.com/vasturiano/three-globe).
+- Earth imagery (public domain): NASA Blue Marble with shaded relief and bathymetry, via
+  [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api);
+  Black Marble 2016 city lights, [NASA Earth Observatory](https://earthobservatory.nasa.gov); the water mask as
+  packaged by [three-globe](https://github.com/vasturiano/three-globe).
 - Place search: data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, via Photon by komoot and Nominatim.
 - Time zones: [@photostructure/tz-lookup](https://github.com/photostructure/tz-lookup).
 - Eclipse predictions by Fred Espenak (lunar eclipse elements with Jean Meeus), NASA's GSFC

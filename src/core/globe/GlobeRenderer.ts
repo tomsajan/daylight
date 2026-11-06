@@ -15,7 +15,9 @@ import { ECLIPSE_GLSL, eclipseUniforms } from '../eclipse/glsl';
 // Imported, not served from /public: Vite then emits hashed files with URLs that work
 // from every page (designs live in subfolders) and under any base path.
 import dayTexture from './textures/earth-blue-marble.jpg';
+import dayTexture8k from './textures/earth-blue-marble-8k.jpg';
 import nightTexture from './textures/earth-night.jpg';
+import nightTexture8k from './textures/earth-night-8k.jpg';
 import waterTexture from './textures/earth-water.png';
 
 export interface GlobeMarker {
@@ -87,6 +89,16 @@ export const DEFAULT_GLOBE_OPTIONS: GlobeOptions = {
 
 const TROPIC = 23.4368;
 const FOV = 35;
+
+/**
+ * Whether to load the 8192 wide day and night images rather than the 4096 wide ones:
+ * where the graphics card takes images that large, and the device does not say it is
+ * short of memory. The two take about 360 MB of graphics memory, the smaller ones a quarter.
+ */
+function sharpTextures(renderer: THREE.WebGLRenderer): boolean {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return renderer.capabilities.maxTextureSize >= 8192 && (memory === undefined || memory >= 4);
+}
 
 /** Camera distance (Earth radii) at which the globe just fills the narrower side of the view. */
 export const FIT_DISTANCE = 1 / Math.sin((FOV * Math.PI) / 360);
@@ -342,13 +354,30 @@ export class GlobeRenderer {
       this.flight = null;
     });
 
-    const loader = new THREE.TextureLoader();
-    const tex = (url: string, srgb = true) => {
-      const t = loader.load(url, () => (this.dirty = true));
+    const loader = new THREE.ImageLoader();
+    // Each image is tried in turn until one loads: the sharper one first where it is wanted.
+    const tex = (urls: string[], srgb = true) => {
+      const t = new THREE.Texture();
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      const attempt = (i: number) =>
+        loader.load(
+          urls[i],
+          (image) => {
+            if (this.disposed) return;
+            t.image = image;
+            t.needsUpdate = true;
+            this.dirty = true;
+          },
+          undefined,
+          () => {
+            if (i + 1 < urls.length) attempt(i + 1);
+          },
+        );
+      attempt(0);
       return t;
     };
+    const sharp = sharpTextures(this.renderer);
 
     this.earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 128, 64),
@@ -356,9 +385,9 @@ export class GlobeRenderer {
         vertexShader: earthVertex,
         fragmentShader: earthFragment,
         uniforms: {
-          dayMap: { value: tex(dayTexture) },
-          nightMap: { value: tex(nightTexture) },
-          waterMap: { value: tex(waterTexture, false) },
+          dayMap: { value: tex(sharp ? [dayTexture8k, dayTexture] : [dayTexture]) },
+          nightMap: { value: tex(sharp ? [nightTexture8k, nightTexture] : [nightTexture]) },
+          waterMap: { value: tex([waterTexture], false) },
           sunDir: { value: this.sunDir },
           bands: { value: 1 },
           lines: { value: 1 },
