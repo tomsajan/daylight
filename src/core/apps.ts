@@ -1,10 +1,12 @@
 /**
- * The site holds two apps: Daylight, in several designs of the same thing, and
- * Eclipses. Every page in designs/* says in its meta.ts which app it belongs to;
+ * The site holds three apps: Daylight, in several designs of the same thing,
+ * Eclipses and Night Sky. Every page in designs/* says in its meta.ts which app it belongs to;
  * this module lists them and remembers where to go back to when switching apps.
  */
 
-export type AppName = 'daylight' | 'eclipses';
+export type AppName = 'daylight' | 'eclipses' | 'sky';
+
+export const APP_NAMES: AppName[] = ['daylight', 'eclipses', 'sky'];
 
 export interface DesignMeta {
   name: string;
@@ -65,7 +67,7 @@ function write(storage: () => Storage, key: string, value: string): void {
   }
 }
 
-// A daylight design remembers itself, so leaving Eclipses comes back to it.
+// A daylight design remembers itself, so coming back from another app returns to it.
 if (currentDesign?.app === 'daylight' && !currentDesign.dev) write(() => localStorage, LAST_DAYLIGHT, currentSlug);
 
 /** The daylight design last used in this browser, or the default. */
@@ -79,12 +81,23 @@ export function rememberEclipse(id: string): void {
   write(() => sessionStorage, LAST_ECLIPSE, id);
 }
 
+/** Where each app lives, for the links between them. */
+export const APP_INFO: Record<AppName, { name: string; title: string }> = {
+  daylight: { name: 'Daylight', title: 'Daylight: sunrise, sunset and day length through the year' },
+  eclipses: { name: 'Eclipses', title: 'Eclipses: every solar and lunar eclipse, 1980-2100' },
+  sky: { name: 'Night Sky', title: 'Night Sky: plan astrophotography, darkness, the Moon and what is up' },
+};
+
+/** The app this page belongs to; the start page counts as Daylight. */
+export const currentApp: AppName = currentDesign?.app ?? 'daylight';
+
 /**
- * Link to the other app, from a page in designs/*. Places come along; time does not, as the two
- * apps look at different moments: now or a date in the year against the instant of an eclipse.
+ * Link to another app, from a page in designs/*. Places come along; time does not, as the
+ * apps look at different moments: now or a date in the year, the instant of an eclipse, a night.
  */
-export function otherAppHref(places: string): string {
-  if (currentDesign?.app === 'eclipses') return `../${lastDaylightDesign()}/${places}`;
+export function appHref(to: AppName, places: string): string {
+  if (to === 'daylight') return `../${lastDaylightDesign()}/${places}`;
+  if (to === 'sky') return `../sky/${places}`;
   const eclipse = read(() => sessionStorage, LAST_ECLIPSE);
   return `../eclipse/${places}${eclipse ? `#${eclipse}` : ''}`;
 }

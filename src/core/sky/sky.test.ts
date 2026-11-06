@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as A from 'astronomy-engine';
-import { DSOS, STARS, STAR_NAMES, CONSTELLATIONS, MILKY_WAY } from './catalog';
+import { DSOS, STARS, STAR_NAMES, CONSTELLATIONS, MILKY_WAY, unitVector } from './catalog';
+import { Projector, ellipseOutline, frameOutline, horizontalVector } from './projection';
 import { altAzOf, skyFrame } from './frame';
 import { moonPhaseName, nightOf, totalMs } from './night';
 import { findTarget, monthSpan, visibility, yearNights, yearVisibility } from './targets';
@@ -136,5 +137,58 @@ describe('camera', () => {
     const npf = ruleNpf({ ...DEFAULT_CAMERA, focal: 20 }, 0);
     expect(npf).toBeCloseTo((16.856 * 2.8 + 0.0997 * 20 + 13.713 * 5.9) / 20, 6);
     expect(ruleNpf({ ...DEFAULT_CAMERA, focal: 20 }, 60)).toBeCloseTo(npf * 2, 6);
+  });
+});
+
+describe('sky chart projection', () => {
+  it('turns screen positions into directions and back', () => {
+    const p = new Projector({ az: 135, alt: 40, fov: 90 }, 800, 600);
+    for (const [x, y] of [
+      [400, 300],
+      [10, 20],
+      [790, 590],
+      [123, 456],
+    ]) {
+      const q = p.project(p.unproject(x, y))!;
+      expect(q[0]).toBeCloseTo(x, 6);
+      expect(q[1]).toBeCloseTo(y, 6);
+    }
+    const mid = p.project(horizontalVector(135, 40))!;
+    expect(mid[0]).toBeCloseTo(400, 6);
+    expect(mid[1]).toBeCloseTo(300, 6);
+  });
+
+  it('draws the whole sky with north up and east on the left, as looking up', () => {
+    const p = new Projector({ az: 180, alt: 90, fov: 180 }, 600, 600);
+    const north = p.project(horizontalVector(0, 0))!;
+    const east = p.project(horizontalVector(90, 0))!;
+    expect(north[1]).toBeCloseTo(0, 6);
+    expect(east[0]).toBeCloseTo(0, 6);
+    // Facing south, a little above the horizon: west on the right, the zenith above.
+    const s = new Projector({ az: 180, alt: 20, fov: 60 }, 600, 600);
+    expect(s.project(horizontalVector(200, 20))![0]).toBeGreaterThan(300);
+    expect(s.project(horizontalVector(180, 30))![1]).toBeLessThan(300);
+  });
+
+  it('frames a rectangle of the right size around a target', () => {
+    const t = unitVector(10.68, 41.27);
+    const [outline] = frameOutline(t, 10, 6, 0);
+    const corner = outline[0];
+    const angle = (Math.acos(t[0] * corner[0] + t[1] * corner[1] + t[2] * corner[2]) * 180) / Math.PI;
+    expect(angle).toBeCloseTo((Math.atan(Math.hypot(Math.tan((5 * Math.PI) / 180), Math.tan((3 * Math.PI) / 180))) * 180) / Math.PI, 6);
+  });
+});
+
+describe('object outlines', () => {
+  it('turns an ellipse to its position angle, east of north', () => {
+    const ra = 10.68;
+    const dec = 41.27;
+    const tip = ellipseOutline(unitVector(ra, dec), 180, 70, 35)[0];
+    const tipRa = (Math.atan2(tip[1], tip[0]) * 180) / Math.PI;
+    const tipDec = (Math.asin(tip[2]) * 180) / Math.PI;
+    const pa = (Math.atan2((tipRa - ra) * Math.cos((dec * Math.PI) / 180), tipDec - dec) * 180) / Math.PI;
+    // Measured on the sphere's flat approximation, so within a degree.
+    expect(Math.abs(pa - 35)).toBeLessThan(1);
+    expect(Math.hypot((tipRa - ra) * Math.cos((dec * Math.PI) / 180), tipDec - dec)).toBeCloseTo(1.5, 2);
   });
 });

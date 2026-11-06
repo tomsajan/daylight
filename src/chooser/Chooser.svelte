@@ -1,5 +1,5 @@
 <!--
-  Start page: the two apps, Daylight and Eclipses. Daylight opens in its default
+  Start page: the three apps, Daylight, Eclipses and Night Sky. Daylight opens in its default
   design, with the other designs one click away; the development pages are only
   listed on a local host.
 -->
@@ -9,12 +9,13 @@
   const search = location.search;
   const daylight = designsOf('daylight');
   const eclipses = designsOf('eclipses')[0];
+  const sky = designsOf('sky')[0];
   const dev = isLocalHost() ? DESIGNS.filter((d) => d.dev) : [];
 </script>
 
 <main>
   <h1>Daylight</h1>
-  <p class="lead">How the days change, and when the Sun or the Moon goes dark, anywhere on Earth.</p>
+  <p class="lead">How the days change, when the Sun or the Moon goes dark, and what the night sky holds, anywhere on Earth.</p>
 
   <div class="apps">
     <section class="app">
@@ -49,6 +50,23 @@
           </svg>
           <strong>{eclipses.name}</strong>
           <span>{eclipses.description}</span>
+        </a>
+      </section>
+    {/if}
+
+    {#if sky}
+      <section class="app">
+        <a class="main" href="designs/{sky.slug}/{search}">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <!-- Stars of a constellation, joined, and a bright one. -->
+            <path d="M6 30 15 19l9 4 8-15" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" />
+            <circle cx="6" cy="30" r="3" fill="currentColor" />
+            <circle cx="15" cy="19" r="3.6" fill="currentColor" />
+            <circle cx="24" cy="23" r="2.7" fill="currentColor" />
+            <path d="m32 2 1.4 3.6L37 7l-3.6 1.4L32 12l-1.4-3.6L27 7l3.6-1.4z" fill="currentColor" />
+          </svg>
+          <strong>{sky.name}</strong>
+          <span>{sky.description}</span>
         </a>
       </section>
     {/if}

@@ -36,7 +36,7 @@
   import EclipseMap from './EclipseMap.svelte';
   import SolarDetails from './SolarDetails.svelte';
   import LunarDetails from './LunarDetails.svelte';
-  import { BASEMAPS, mapyKey, saveMapyKey } from './basemaps';
+  import { BASEMAPS, mapyKey, saveMapyKey } from '$core/map/basemaps';
   import OfflineStorage from '$core/components/OfflineStorage.svelte';
   import { LUNAR_TYPE_NAMES, TYPE_NAMES, coverage } from './describe';
 

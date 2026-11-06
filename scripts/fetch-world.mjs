@@ -2,7 +2,7 @@
 // Downloads the countries of the world and writes them as a compact GeoJSON, the
 // Eclipses map's background when it is offline and has no map tiles kept:
 //
-//   designs/eclipse/data/world.json   country outlines simplified to about 3 km, coordinates to 0.01°,
+//   src/core/map/data/world.json   country outlines simplified to about 3 km, coordinates to 0.01°,
 //                                     no attributes
 //
 // Source: Natural Earth 1:50m admin 0 countries (https://www.naturalearthdata.com), public domain.
@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = join(ROOT, 'designs/eclipse/data/world.json');
+const OUT = join(ROOT, 'src/core/map/data/world.json');
 const URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson';
 
 const round = (v) => Math.round(v * 100) / 100;

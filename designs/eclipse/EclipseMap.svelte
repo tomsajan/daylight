@@ -1,5 +1,5 @@
 <!--
-  The zoomable map: a background map (see basemaps.ts) with the eclipse drawn
+  The zoomable map: a background map (see src/core/map/basemaps.ts) with the eclipse drawn
   over it by EclipseLayer, a marker for the chosen place that can be dragged,
   a line from the place towards the Sun or the Moon at the current time, and a
   readout of the eclipse under the pointer. For a lunar eclipse, labels name the
@@ -28,7 +28,7 @@
   } from '$core/eclipse';
   import { destination } from '$core/terrain';
   import { EclipseLayer, type EclipseLayerOptions } from './eclipseLayer';
-  import { BASEMAPS, mapyKey, offlineStyle } from './basemaps';
+  import { BASEMAPS, mapyKey, offlineStyle } from '$core/map/basemaps';
   import { describeLocal, describeLunar } from './describe';
 
   setWorkerUrl(workerUrl);
