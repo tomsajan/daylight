@@ -246,7 +246,15 @@
       <h2>{formatDate(nightDate, 'long')}{place ? ` · ${place.name}` : ''}</h2>
       <dl>
         <dt>Sunset</dt>
-        <dd>{night.sunset ? clock(night.sunset) : 'none'}{night.sunrise ? ` · sunrise ${clock(night.sunrise)}` : ''}</dd>
+        <dd>
+          {#if night.sunset || night.sunrise}
+            {night.sunset ? clock(night.sunset) : 'none'}{night.sunrise ? ` · sunrise ${clock(night.sunrise)}` : ' · no sunrise'}
+          {:else if night.sunAlt[0] < 0}
+            Polar night: the Sun stays below the horizon
+          {:else}
+            Midnight sun: the Sun stays up
+          {/if}
+        </dd>
         <dt>Dark</dt>
         <dd>
           {#if night.darkness === 'astronomical'}

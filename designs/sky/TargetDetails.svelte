@@ -37,7 +37,13 @@
   const sensor = $derived(sensorOf(camera));
   /** How much of the frame's shorter side the object's long axis takes. */
   const fill = $derived(t.size[0] ? t.size[0] / 60 / Math.min(f.width, f.height) : null);
-  const snug = $derived(t.size[0] && t.kind !== 'core' ? Math.round(focalToFrame(camera, t.size[0]) / 5) * 5 : null);
+  const snug = $derived.by(() => {
+    if (!t.size[0] || t.kind === 'core') return null;
+    const mm = focalToFrame(camera, t.size[0]);
+    return mm > 5000 ? null : Math.round(mm / (mm > 1000 ? 50 : 5)) * (mm > 1000 ? 50 : 5);
+  });
+  /** How many pixels a small target spans. */
+  const pixels = $derived(t.size[0] ? (t.size[0] * 60) / f.pixelScale : null);
   const neverSets = $derived(vis.rises.length === 0 && vis.sets.length === 0 && vis.culmination.alt > 0);
   const neverRises = $derived(vis.culmination.alt < 0);
 </script>
@@ -100,7 +106,9 @@
     {#if fill !== null}
       <dt>Fills</dt>
       <dd>
-        {fill >= 1 ? `${fill.toFixed(1)}× the frame's height: it does not fit, a mosaic or a shorter lens` : `${Math.round(fill * 100)}% of the frame's height`}
+        {#if fill >= 1}{fill.toFixed(1)}× the frame's height: it does not fit, a mosaic or a shorter lens{:else if fill >= 0.03}{Math.round(fill * 100)}% of the frame's height{:else}about {pixels! < 10
+            ? pixels!.toFixed(1)
+            : Math.round(pixels!)} pixels across{/if}
       </dd>
     {/if}
     {#if snug}

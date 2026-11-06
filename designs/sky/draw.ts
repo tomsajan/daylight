@@ -86,26 +86,40 @@ function milkyWayMap(): Float32Array {
   ctx.fillRect(0, 0, MW_W, MW_H);
   ctx.globalCompositeOperation = 'lighter';
   ctx.fillStyle = 'rgb(48 48 48)';
+  // Each level is one polygon: an outline and its holes, filled together so the holes stay dark.
   for (const level of MILKY_WAY) {
+    ctx.beginPath();
     for (const ring of level) {
-      // Carried on round past 0h/24h, and drawn three times over so every part lands on the map.
+      // Carried on round past 0h/24h.
       let ra = ring[0][0];
       const pts = ring.map(([r, d]) => {
         ra += ((r - ra + 540) % 360) - 180;
-        return [ra, d];
+        return [ra, d] as const;
       });
-      for (const shift of [-360, 0, 360]) {
-        ctx.beginPath();
-        pts.forEach(([r, d], i) => {
-          const x = ((r + shift) / 360) * MW_W;
-          const y = ((90 - d) / 180) * MW_H;
-          if (i) ctx.lineTo(x, y);
-          else ctx.moveTo(x, y);
-        });
+      const at = (r: number, d: number): [number, number] => [(r / 360) * MW_W, ((90 - d) / 180) * MW_H];
+      const turn = pts[pts.length - 1][0] - pts[0][0];
+      if (Math.abs(turn) > 180) {
+        // An edge that goes all the way round the sky: drawn three times round, end to end, and
+        // closed past the south pole, so that with the other edge it leaves the band between them.
+        const shifts = turn < 0 ? [360, 0, -360] : [-360, 0, 360];
+        const all = shifts.flatMap((sh) => pts.map(([r, d]) => at(r + sh, d)));
+        all.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.lineTo(all[all.length - 1][0], MW_H + 10);
+        ctx.lineTo(all[0][0], MW_H + 10);
         ctx.closePath();
-        ctx.fill('evenodd');
+      } else {
+        // A patch or a hole: drawn at each of its places across the map's edge.
+        for (const sh of [-360, 0, 360]) {
+          pts.forEach(([r, d], i) => {
+            const [x, y] = at(r + sh, d);
+            if (i) ctx.lineTo(x, y);
+            else ctx.moveTo(x, y);
+          });
+          ctx.closePath();
+        }
       }
     }
+    ctx.fill('evenodd');
   }
   // Softened, as it looks.
   const soft = document.createElement('canvas');
@@ -152,7 +166,10 @@ export function limitingMagnitude(sunAlt: number, moonGlow: number): number {
 }
 
 interface Light {
+  /** J2000 directions of the Sun and the Moon, and the same in the place's horizontal frame. */
   sun: Vec3;
+  sunH: Vec3;
+  moonH: Vec3;
   sunAlt: number;
   moon: Vec3;
   moonAlt: number;
@@ -160,6 +177,9 @@ interface Light {
   moonGlow: number;
   moonFraction: number;
 }
+
+/** The low-resolution sky, kept between frames. */
+let scratch: HTMLCanvasElement | null = null;
 
 function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyScene, light: Light, w: number, h: number) {
   // A pixel of this picture is `step` pixels of the canvas.
@@ -175,8 +195,8 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyS
   const mwLight = mw ? Math.max(0, Math.min(1, (-light.sunAlt - 11) / 7)) * (1 - 0.75 * light.moonGlow) : 0;
   const twilightGlow = light.sunAlt > -18 && light.sunAlt < 8 ? Math.max(0, 1 - Math.abs(light.sunAlt + 3) / 15) : 0;
   const moonLift = light.moonGlow * 22;
-  const [sx, sy, sz] = light.sun;
-  const [mx, my, mz] = light.moon;
+  const [sx, sy, sz] = light.sunH;
+  const [mx, my, mz] = light.moonH;
   for (let j = 0; j < bh; j++) {
     for (let i = 0; i < bw; i++) {
       const v = p.unproject((i + 0.5) * step, (j + 0.5) * step);
@@ -221,9 +241,12 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyS
       out[o + 3] = 255;
     }
   }
-  const tmp = document.createElement('canvas');
-  tmp.width = bw;
-  tmp.height = bh;
+  scratch ??= document.createElement('canvas');
+  const tmp = scratch;
+  if (tmp.width !== bw || tmp.height !== bh) {
+    tmp.width = bw;
+    tmp.height = bh;
+  }
   tmp.getContext('2d')!.putImageData(img, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -601,7 +624,7 @@ export function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number, sce
   const moonAlt = Math.asin(horiz(f, moon)[2]) * DEG;
   const moonFraction = bodyLight('Moon', scene.ms).fraction;
   const moonGlow = moonAlt > 0 ? moonFraction ** 1.5 * Math.min(1, moonAlt / 10 + 0.3) : 0;
-  const light: Light = { sun, sunAlt, moon, moonAlt, moonGlow, moonFraction };
+  const light: Light = { sun, sunH: horiz(f, sun), moon, moonH: horiz(f, moon), sunAlt, moonAlt, moonGlow, moonFraction };
   const picks: Pickable[] = [];
 
   drawBackground(ctx, p, scene, light, w, h);
@@ -613,7 +636,8 @@ export function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number, sce
   drawSolarSystem(ctx, p, scene, light, picks);
   drawGround(ctx, p, w, h, sunAlt);
   drawCompass(ctx, p);
-  if (scene.camera && scene.layers.frame) drawCameraFrame(ctx, p, f, scene.camera);
+  // The frame only once the target is up; below the horizon it would lie on the ground.
+  if (scene.camera && scene.layers.frame && horiz(f, scene.camera.centre)[2] > -0.03) drawCameraFrame(ctx, p, f, scene.camera);
   if (scene.selected) drawSelected(ctx, p, f, scene.selected);
   return picks;
 }

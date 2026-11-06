@@ -22,14 +22,17 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
 - Zoomable charts and globe, resizable panels, adjustable day and night brightness, light and dark themes.
 - **Eclipses:** solar and lunar eclipses 1980-2100 on a map you can zoom down to street level, with what each looks
   like from any place (see below).
+- **Night Sky:** planning astrophotography: when it is dark and the Moon is down, what is up and for how long, the sky
+  with your camera's frame on the target, and a map of the lights on the ground (see below).
 - Works on phones; the whole state (places, time, speed) is in the URL, so a link shows the same view.
 - **Works offline**, e.g. on a plane: install it with the Install button in the settings (Chrome, Edge) or from the
   browser's menu, or just open it once, and it opens without a network after that. See [Offline](#offline).
 
-### Two apps
+### Three apps
 
-The start page offers two apps, **Daylight** and **Eclipses**. Every page has a link to the other app that takes your
-places along; going back returns to the Daylight design you came from, and to the eclipse you left.
+The start page offers three apps, **Daylight**, **Eclipses** and **Night Sky**. Every page has links to the other
+apps that take your places along; going back returns to the Daylight design you came from, and to the eclipse you
+left.
 
 ### Daylight in three designs
 
@@ -89,6 +92,35 @@ Both:
 - The panel can be dragged wider for a bigger sky picture. A link keeps the eclipse, the place and the time, e.g.
   [the 2027 eclipse from Luxor](https://daylight.tomsa.xyz/designs/eclipse/?p=Luxor~Egypt~25.6870~32.6390&t=2027-08-02T10:05Z#2027-08-02).
 
+### Night Sky
+
+[Night Sky](https://daylight.tomsa.xyz/designs/sky/) plans a night of astrophotography at a place.
+
+- **The night:** sunset, when it is properly dark (the Sun 18° below the horizon) and for how long, the Moon's phase
+  and when it rises and sets, and the dark hours with the Moon down, the ones that count for faint things. Where it
+  never gets fully dark (Prague around midsummer, say) it says so and works with the nautical twilight instead.
+- **Targets:** the 110 Messier objects, some 65 favourite NGC and IC objects (the North America and Veil nebulae,
+  the Double Cluster, the Horsehead, the Magellanic Clouds…), the planets, the Moon and the core of the Milky Way,
+  ranked by how long each is above a chosen altitude (30° unless changed) in the dark with the Moon down. Search
+  and filter by kind.
+- **A target:** when it is highest, when it rises and sets, its hours above the altitude tonight and how far the
+  Moon is; through the year, night by night, its dark hours with and without the Moon, and its best months.
+- **The sky chart:** the sky from the place at the chosen time, as if lying on your back: stars to magnitude 6 in
+  their colours, the constellations, the Milky Way, the deep-sky objects at their true size and orientation when
+  zoomed in, the planets and the Moon in its phase, twilight and moonlight brightening the sky. Drag to look
+  around, scroll or pinch to zoom.
+- **The camera:** pick a sensor (or enter your own), the focal length and the aperture; the frame is drawn on the
+  sky around the target, turned as you like, with how much of it the target fills, a focal length that frames it
+  snugly, and how long an exposure can be without tracking by the 500 rule and the NPF rule.
+- **The night timeline:** darkness through the night, the Moon's altitude and the target's, with the hours worth
+  shooting picked out; click or drag to move through the night.
+- **Dark sites map:** the lights of the Earth at night as a satellite sees them (NASA's VIIRS Night Lights), over a
+  background map, to find a spot far from towns; click to move the place there.
+- **Night vision:** everything in red, to keep your eyes used to the dark.
+
+The core of the Milky Way counts from 10° up rather than the chosen altitude: it is photographed low over the
+landscape, and from mid-northern latitudes it never gets much higher.
+
 ## How it works
 
 Everything is computed in the browser; there is no backend. The build is a static site that any web server or
@@ -99,7 +131,8 @@ not answering, as its usage policy does not allow search-as-you-type. Time zones
 looked up offline. The Eclipses page also loads map tiles: [OpenFreeMap](https://openfreemap.org) (OpenStreetMap
 data), the [Sentinel-2 cloudless](https://s2maps.eu) mosaic, or [Mapy.com](https://mapy.com); and for the skyline,
 elevation tiles from the [terrain tiles on AWS](https://registry.opendata.aws/terrain-tiles/), some 15 to 30 per
-place, unless the terrain is switched off.
+place, unless the terrain is switched off. Night Sky's map of dark sites loads the same background maps and NASA's
+night lights tiles from [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api).
 
 Mapy.com needs an API key, free for modest use at [developer.mapy.com](https://developer.mapy.com). Either enter it
 on the page, where it stays in that browser, or build with `VITE_MAPY_API_KEY=...`. A key built into a public site
@@ -108,7 +141,7 @@ should be restricted to that site's address in the Mapy.com account.
 ## Offline
 
 A service worker (built by [vite-plugin-pwa](https://vite-pwa-org.netlify.app) with Workbox) keeps the whole site on
-the device after the first visit, about 5.5 MB, so every page opens and works without a network. With the manifest
+the device after the first visit, about 6 MB, so every page opens and works without a network. With the manifest
 it can be installed as an app; a new version is picked up on the next visit online.
 
 Map and terrain tiles are kept as they are looked at, never fetched ahead, so offline the Eclipses map shows the
@@ -151,7 +184,7 @@ npm run dev          # http://localhost:5173
 
 Other commands:
 
-- `npm test`: sun and eclipse tests, against astronomy-engine and NASA's tables, and skyline tests on made-up terrain
+- `npm test`: sun, eclipse and night sky tests, against astronomy-engine and NASA's tables, and skyline tests on made-up terrain
 - `npm run check`: type check
 - `npm run build`: static site in `dist/`; `npm run preview` serves it
 
@@ -166,6 +199,10 @@ src/core/            shared engine, used by every design
   eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits,
                      and the same maths in GLSL for drawing them per pixel; lunar eclipses 1980-2100
   terrain/           elevation tiles, the skyline from a point, and the Sun or Moon against it
+  sky/               the night sky: star, constellation, Milky Way and deep-sky catalogues, the sky from a place
+                     (astronomy-engine), nights, targets through a night and a year, camera fields and exposure rules,
+                     the sky chart's projection
+  map/               background maps for the MapLibre pages, and the offline world map
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
   globe/             Three.js globe renderer + Svelte wrapper; detail.ts: the sharper tiles when zoomed in
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
@@ -173,11 +210,13 @@ src/core/            shared engine, used by every design
   offline/           service worker registration, offline storage size and clearing
 designs/<name>/      one folder per design; each is its own page at /designs/<name>/
 designs/eclipse/     the Eclipses page: MapLibre map, the eclipse layer drawn per pixel, panels and sky views
+designs/sky/         the Night Sky page: the sky chart, the night timeline, targets, camera, the dark sites map
 scripts/             fetch-eclipses.mjs: downloads NASA's eclipse data and ΔT, writes src/core/eclipse/data/;
-                     fetch-world.mjs: the offline world map; make-icons.py: draws the app icons;
+                     fetch-world.mjs: the offline world map; fetch-sky.mjs: the night sky's catalogues, written to
+                     src/core/sky/data/; make-icons.py: draws the app icons;
                      make-earth-textures.py: the globe's day and night images from NASA's originals
 public/              web app manifest and icons
-index.html           start page: the two apps and Daylight's designs
+index.html           start page: the three apps and Daylight's designs
 ```
 
 To add a design, create `designs/<name>/` with an `index.html`, a `main.ts` and a `meta.ts` (its name, order, and
@@ -208,6 +247,12 @@ out within some 20 m of their height; a sharp peak can be 100 m low (the Matterh
 here, 18.5° in reality). Ground within a few hundred metres is rough. Where the Sun passes within half a degree of
 the skyline, go and look.
 
+The night sky's Sun, Moon and planets come from astronomy-engine, as does the turn from the catalogue's J2000
+positions to the sky of the date (precession and nutation). Dusk, dawn, moonrise and moonset agree with
+astronomy-engine's own searches within a minute or two; the Moon's direction is interpolated between hourly
+positions. Deep-sky sizes and orientations are OpenNGC's; for a few large nebulae whose entry is for a part of
+them (IC 1396, NGC 6357, NGC 6334) the size is set by hand.
+
 ## Credits
 
 - Earth imagery (public domain): NASA Blue Marble with shaded relief and bathymetry, as an image and as tiles, via
@@ -224,10 +269,17 @@ the skyline, go and look.
   [Sentinel-2 cloudless](https://s2maps.eu) by EOX (contains modified Copernicus Sentinel data) and
   [Mapy.com](https://mapy.com) (© Seznam.cz a.s. and others).
 - Offline world map: [Natural Earth](https://www.naturalearthdata.com) (public domain).
+- Night sky: Sun, Moon and planets by [astronomy-engine](https://github.com/cosinekitty/astronomy) (MIT); stars
+  (Hipparcos positions), constellation figures and the Milky Way's outline from
+  [d3-celestial](https://github.com/ofrohn/d3-celestial) by Olaf Frohn (BSD 3-clause); deep-sky objects from
+  [OpenNGC](https://github.com/mattiaverga/OpenNGC) by Mattia Verga (CC BY-SA 4.0; `src/core/sky/data/dso.json` is
+  under the same license); night lights: NASA VIIRS Night Lights 2016 via NASA GIBS (public domain).
+  `node scripts/fetch-sky.mjs` downloads them again.
 - Terrain: [Mapzen terrain tiles](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) hosted as AWS
   open data, from SRTM, GMTED2010, ETOPO1 and national elevation models.
 - Built with [Svelte](https://svelte.dev), [Three.js](https://threejs.org) and [Vite](https://vite.dev).
 
 ## License
 
-[MIT](LICENSE). The Earth textures are public domain.
+[MIT](LICENSE). The Earth textures are public domain. The deep-sky catalogue `src/core/sky/data/dso.json`, derived
+from OpenNGC, is CC BY-SA 4.0.

@@ -41,8 +41,12 @@
   function draw() {
     if (!canvas || !width || !height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
+    const w = Math.round(width * dpr);
+    const h = Math.round(height * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     picks = drawSky(ctx, width, height, { ms: time, site, frame: skyFrame(time, site), view, layers, selected, camera });
