@@ -6,6 +6,11 @@
   - mode "change": minutes of daylight gained or lost since the day before,
     split into the morning part (sunrise earlier/later) and the evening part
     (sunset later/earlier) for the primary place; totals for compared places.
+  - mode "clock": when solar noon falls on each place's clock (in the chosen
+    time scale), against 12:00 (above zero: the sun is behind the clock), with
+    the equation of time alone for comparison and, where the place has summer
+    time, the primary place on standard time all year; the days the clock and
+    the sun agree are marked on the zero line.
   - `annotations`: labelled marks along the top (see core/state/seasons.ts).
   Zoom: wheel or horizontal pinch = dates, Shift+wheel or vertical pinch = hours,
   drag to pan, double-click/double-tap to reset, click/tap to pick a day.
@@ -21,6 +26,8 @@
     days: import('../astro/daylight').DayLight[];
     /** The day before the first one (Dec 31 of the year before), for the change on Jan 1. */
     previous?: import('../astro/daylight').DayLight;
+    /** The sun against the place's clock on the same days (for the "clock" mode). */
+    clock?: import('../astro/clock').SunClock[];
   }
 
   export interface YearAnnotation {
@@ -38,6 +45,7 @@
   import { onMount, untrack } from 'svelte';
   import { app } from '../state/app.svelte';
   import { daylightChange, Light, type DaylightChange } from '../astro/daylight';
+  import { zeroCrossings } from '../astro/clock';
   import type { ChartMode } from '../state/settings.svelte';
   import { formatMinutes, formatDuration, type HourCycle } from '../time/format';
   import { ChartZoom, type Domain } from './zoom';
@@ -139,8 +147,26 @@
     return 1440;
   });
 
-  const extent = $derived<Domain>({ x: [0, dayCount], y: mode === 'change' ? [-changeLimit, changeLimit] : [0, 1440] });
-  const minSpanY = $derived(mode === 'change' ? changeLimit / 10 : 60);
+  /** Vertical range for the clock chart, minutes: every curve and zero, in round steps. */
+  const clockRange = $derived.by((): [number, number] => {
+    if (mode !== 'clock') return [0, 0];
+    let lo = 0;
+    let hi = 0;
+    for (const s of series)
+      for (const c of s.clock ?? []) {
+        lo = Math.min(lo, c.total, c.equation);
+        hi = Math.max(hi, c.total, c.equation);
+      }
+    const step = hi - lo > 150 ? 30 : hi - lo > 60 ? 15 : 5;
+    return [Math.floor((lo - 2) / step) * step, Math.ceil((hi + 2) / step) * step];
+  });
+
+  const signed = $derived(mode === 'change' || mode === 'clock');
+  const extent = $derived<Domain>({
+    x: [0, dayCount],
+    y: mode === 'change' ? [-changeLimit, changeLimit] : mode === 'clock' ? clockRange : [0, 1440],
+  });
+  const minSpanY = $derived(mode === 'change' ? changeLimit / 10 : mode === 'clock' ? 5 : 60);
   let view = $state<Domain>({ x: [0, 365], y: [0, 1440] });
 
   // --- Dragging the sun / selected day ------------------------------------------
@@ -190,7 +216,7 @@
   }
 
   // Extra room at the top for annotation labels, when there are any.
-  const margin = $derived({ left: mode === 'change' ? 56 : 44, right: 10, top: annotations.length ? 24 : 10, bottom: 24 });
+  const margin = $derived({ left: signed ? 56 : 44, right: 10, top: annotations.length ? 24 : 10, bottom: 24 });
   const plot = () => ({
     left: margin.left,
     top: margin.top,
@@ -275,7 +301,7 @@
       zoom.setMinSpan({ x: 7, y: minSpanY });
       zoom.setExtent(e, true);
       const y = e.y.join();
-      if ((lastMode !== null && m !== lastMode) || (m === 'change' && y !== lastY)) zoom.resetY();
+      if ((lastMode !== null && m !== lastMode) || ((m === 'change' || m === 'clock') && y !== lastY)) zoom.resetY();
       lastMode = m;
       lastY = y;
     });
@@ -426,7 +452,7 @@
     // Grid.
     ctx.lineWidth = 1;
     ctx.strokeStyle = pal.grid;
-    const yStep = mode === 'change' ? changeStep(view.y[1] - view.y[0], p.height) : timeStep(view.y[1] - view.y[0], p.height);
+    const yStep = signed ? changeStep(view.y[1] - view.y[0], p.height) : timeStep(view.y[1] - view.y[0], p.height);
     for (let m = Math.ceil(view.y[0] / yStep) * yStep; m <= view.y[1]; m += yStep) {
       const y = Math.round(Y(m)) + 0.5;
       ctx.beginPath();
@@ -458,6 +484,15 @@
     }
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
+
+    function zeroLine() {
+      ctx.strokeStyle = pal.axis;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(p.left, Math.round(Y(0)) + 0.5);
+      ctx.lineTo(p.left + p.width, Math.round(Y(0)) + 0.5);
+      ctx.stroke();
+    }
 
     // Lines: solar noon, compared places, day length curves.
     const curve = (
@@ -510,14 +545,47 @@
           curve(s.days, (d) => d.daylightMin, color, lw);
         }
       }
+    } else if (mode === 'clock') {
+      zeroLine();
+      const clock = primary?.clock ?? [];
+      const sundial = clock[0]?.kind === 'solar-apparent';
+      const summer = clock.some((c) => c.summer);
+      if (primary && clock.length && !sundial) {
+        ctx.lineCap = 'round';
+        curve(primary.days, (_, i) => clock[i]?.equation ?? null, pal.text, 1.5, EQUATION_DASH);
+        if (summer) {
+          ctx.globalAlpha = 0.8;
+          curve(primary.days, (_, i) => clock[i]?.standard ?? null, primary.color, 1.75, STANDARD_DASH);
+          ctx.globalAlpha = 1;
+        }
+        ctx.lineCap = 'butt';
+      }
+      for (const s of [...series].reverse()) {
+        if (s !== primary && !showCompare) continue;
+        const clock = s.clock;
+        if (!clock) continue;
+        const isPrimary = s === primary;
+        for (const [color, lw] of [[pal.background, isPrimary ? 5 : 4], [s.color, isPrimary ? 2.5 : 2]] as const) curve(s.days, (_, i) => clock[i]?.total ?? null, color, lw);
+      }
+      // The days the primary place's clock and sun agree; smaller and fainter on standard time all year.
+      const ring = (z: number, r: number, alpha: number) => {
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = pal.background;
+        ctx.strokeStyle = primary!.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(X(z + 0.5), Y(0), r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      };
+      if (primary && clock.length && !sundial) {
+        if (summer) for (const z of zeroCrossings(clock.map((c) => c.standard))) ring(z, 3, 0.8);
+        for (const z of zeroCrossings(clock.map((c) => c.total))) ring(z, 4, 1);
+      }
     } else {
       // Zero line, then morning and evening parts of the primary place, then totals on top.
-      ctx.strokeStyle = pal.axis;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(p.left, Math.round(Y(0)) + 0.5);
-      ctx.lineTo(p.left + p.width, Math.round(Y(0)) + 0.5);
-      ctx.stroke();
+      zeroLine();
       if (primary) {
         const list = changes[0] ?? [];
         ctx.lineCap = 'round';
@@ -547,7 +615,7 @@
         ctx.lineTo(x, p.top + p.height);
         ctx.stroke();
       }
-      const changeAt = mode === 'change' ? changes[0]?.[selectedIndex]?.total : undefined;
+      const changeAt = mode === 'change' ? changes[0]?.[selectedIndex]?.total : mode === 'clock' ? primary?.clock?.[selectedIndex]?.total : undefined;
       if (changeAt != null) {
         ctx.fillStyle = pal.marker;
         ctx.strokeStyle = pal.background;
@@ -585,6 +653,14 @@
     }
 
     if (mode === 'change' && primary) drawChangeLegend(ctx, p, pal, primary.color);
+    if (mode === 'clock' && primary?.clock?.length && primary.clock[0].kind !== 'solar-apparent') {
+      const entries: Parameters<typeof drawLegend>[3] = [
+        [primary.color, ['Solar noon on the clock', 'Solar noon'], [], 2.5],
+        [pal.text, ['Equation of time alone', 'Equation of time'], EQUATION_DASH, 1.5],
+      ];
+      if (primary.clock.some((c) => c.summer)) entries.push([primary.color, ['Standard time all year', 'No summer time'], STANDARD_DASH, 1.75]);
+      drawLegend(ctx, p, pal, entries);
+    }
     ctx.restore();
 
     // Annotation labels in the top margin, longest form that fits, never overlapping.
@@ -614,7 +690,7 @@
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let m = Math.ceil(view.y[0] / yStep - 1e-9) * yStep; m <= view.y[1] + 0.01; m += yStep) {
-      if (mode === 'change') {
+      if (signed) {
         ctx.fillText(formatChangeTick(m, yStep), p.left - 6, Y(m));
         continue;
       }
@@ -639,8 +715,24 @@
   // palettes may also give them colours.
   const MORNING_DASH = [7, 4];
   const EVENING_DASH = [0.5, 4];
+  const EQUATION_DASH = [5, 4];
+  const STANDARD_DASH = [0.5, 3.5];
 
   function drawChangeLegend(ctx: CanvasRenderingContext2D, p: { left: number; top: number; width: number }, pal: ChartPalette, totalColor: string) {
+    drawLegend(ctx, p, pal, [
+      [totalColor, ['Total', 'Total'], [], 2.5],
+      [pal.morning ?? pal.text, ['Morning (sunrise)', 'Morning'], MORNING_DASH, 1.75],
+      [pal.evening ?? pal.text, ['Evening (sunset)', 'Evening'], EVENING_DASH, 2],
+    ]);
+  }
+
+  /** A legend in the top left corner: colour, [long label, short label], dash, line width per item. */
+  function drawLegend(
+    ctx: CanvasRenderingContext2D,
+    p: { left: number; top: number; width: number },
+    pal: ChartPalette,
+    entries: [string, [string, string], number[], number][],
+  ) {
     ctx.font = pal.font;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
@@ -649,14 +741,10 @@
       const widths = labels.map((t) => ctx.measureText(t).width + 30);
       return { labels, widths, w: widths.reduce((a, b) => a + b, 0) + 8 };
     };
-    let fit = layout(['Total', 'Morning (sunrise)', 'Evening (sunset)']);
-    if (fit.w > p.width - 12) fit = layout(['Total', 'Morning', 'Evening']);
+    let fit = layout(entries.map((e) => e[1][0]));
+    if (fit.w > p.width - 12) fit = layout(entries.map((e) => e[1][1]));
     const { widths, w } = fit;
-    const items: [string, string, number[], number][] = [
-      [totalColor, fit.labels[0], [], 2.5],
-      [pal.morning ?? pal.text, fit.labels[1], MORNING_DASH, 1.75],
-      [pal.evening ?? pal.text, fit.labels[2], EVENING_DASH, 2],
-    ];
+    const items = entries.map(([color, , dash, lw], i) => [color, fit.labels[i], dash, lw] as const);
     const x = p.left + 6;
     const y = p.top + 6;
     ctx.fillStyle = pal.background;
@@ -688,13 +776,15 @@
     return 480;
   }
 
-  /** "+2 min", "−30 s", "0". */
+  /** "+2 min", "−30 s", "+1 h", "+2 h 30", "0". */
   function formatChangeTick(m: number, step: number): string {
     if (Math.abs(m) < step / 100) return '0';
     const sign = m > 0 ? '+' : '−';
     const a = Math.abs(m);
     if (step < 1) return `${sign}${Math.round(a * 60)} s`;
-    return a >= 60 && a % 60 === 0 ? `${sign}${a / 60} h` : `${sign}${Math.round(a)} min`;
+    if (a < 60) return `${sign}${Math.round(a)} min`;
+    const rest = Math.round(a % 60);
+    return rest ? `${sign}${Math.floor(a / 60)} h ${rest}` : `${sign}${a / 60} h`;
   }
 
   /** Grid step in minutes for a visible span. */

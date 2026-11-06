@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatShift, formatSpeed } from './format';
+import { formatShift, formatSigned, formatSpeed, formatSunClock } from './format';
 
 describe('formatSpeed', () => {
   it('picks a readable unit', () => {
@@ -23,5 +23,16 @@ describe('formatShift', () => {
     expect(formatShift('sunset', 0.001)).toBe('no change');
     expect(formatShift('sunrise', -1.8, true)).toBe('1m 48s later');
     expect(formatShift('sunset', 0.5, true)).toBe('30s later');
+  });
+});
+
+describe('sun against the clock', () => {
+  it('says which way and how far', () => {
+    expect(formatSunClock(31.2)).toBe('31 min behind the clock');
+    expect(formatSunClock(-62)).toBe('1 h 02 min ahead of the clock');
+    expect(formatSunClock(0.3)).toBe('with the clock');
+    expect(formatSigned(2.4)).toBe('+2 min');
+    expect(formatSigned(-65)).toBe('−1 h 05 min');
+    expect(formatSigned(0.2)).toBe('0 min');
   });
 });

@@ -88,6 +88,7 @@
         <label class="pill"><input type="radio" name="alm-chart" value="bands" bind:group={settings.chartMode} /><span>Sunrise &amp; sunset</span></label>
         <label class="pill"><input type="radio" name="alm-chart" value="daylength" bind:group={settings.chartMode} /><span>Day length</span></label>
         <label class="pill"><input type="radio" name="alm-chart" value="change" bind:group={settings.chartMode} /><span>Daily change</span></label>
+        <label class="pill"><input type="radio" name="alm-chart" value="clock" bind:group={settings.chartMode} /><span>Sun and clock</span></label>
       </div>
     </fieldset>
 

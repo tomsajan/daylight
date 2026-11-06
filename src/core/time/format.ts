@@ -44,6 +44,22 @@ export function formatDelta(minutes: number): string {
   return m ? `${sign}${m} min ${s} s` : `${sign}${s} s`;
 }
 
+/** Signed minutes rounded to the minute, e.g. "+2 min", "−1 h 05 min", "0 min". */
+export function formatSigned(minutes: number): string {
+  const r = Math.round(minutes);
+  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${formatDuration(Math.abs(r))}`;
+}
+
+/**
+ * The sun against the clock, from minutes the sun is behind it (solar noon after
+ * 12:00): "31 min behind the clock", "1 h 02 min ahead of the clock", "with the clock".
+ */
+export function formatSunClock(minutes: number): string {
+  const r = Math.round(minutes);
+  if (r === 0) return 'with the clock';
+  return `${formatDuration(Math.abs(r))} ${r > 0 ? 'behind' : 'ahead of'} the clock`;
+}
+
 /**
  * How far sunrise or sunset moved since the day before, from the daylight it
  * gained (positive) or lost: ("sunrise", 1.8) → "1 min 48 s earlier",

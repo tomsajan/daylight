@@ -3,12 +3,13 @@
   import { nextEvents } from '$core/astro/daylight';
   import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
-  import { daySummary } from '$core/state/views';
+  import { clockParts, clockSummary, clockZerosText, daySummary } from '$core/state/views';
   import { formatCoordinates } from '$core/geo/place';
   import { formatDate, formatMinutes, formatOffset } from '$core/time/format';
-  import { deg, delta, dur } from './lib';
+  import { clockGap, deg, delta, dur } from './lib';
 
   const summary = $derived(daySummary());
+  const clock = $derived(clockSummary());
   const hc = $derived(settings.hourCycle);
 
   // Recompute the next event once per simulated minute rather than every frame.
@@ -71,6 +72,22 @@
       {/if}
       <div><dt class="lbl">Solar noon</dt><dd class="num">{formatMinutes(d.solarNoon.minutes, hc)}</dd></div>
       <div><dt class="lbl">Noon altitude</dt><dd class="num">{deg(d.solarNoon.altitude)}</dd></div>
+      {#if clock}
+        <div>
+          <dt class="lbl" title="Solar noon on the clock against 12:00: {clockParts(clock.day)}">Sun − clock</dt>
+          <dd class="num">{clockGap(clock.day.total)} <small>{clock.day.total >= 0.5 ? 'sun behind' : clock.day.total <= -0.5 ? 'sun ahead' : ''}</small></dd>
+        </div>
+        <div>
+          <dt class="lbl">Clock = sun</dt>
+          <dd class="num">{clockZerosText(clock.zeros, (z) => formatDate(z, 'short'), clock.always)}</dd>
+        </div>
+        {#if clock.standardZeros}
+          <div>
+            <dt class="lbl" title="On standard time all year, without summer time">Clock = sun, no DST</dt>
+            <dd class="num">{clockZerosText(clock.standardZeros, (z) => formatDate(z, 'short'))}</dd>
+          </div>
+        {/if}
+      {/if}
       <div>
         <dt class="lbl">Longest day</dt>
         <dd class="num">{dur(summary.longest.daylightMin)} <small>{formatDate(summary.longest.date, 'short')}</small></dd>

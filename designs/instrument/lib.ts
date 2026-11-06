@@ -35,6 +35,14 @@ export function durDelta(minutes: number): string {
   return sign + dur(Math.abs(minutes));
 }
 
+/** "+14m", "−1h02m", "±0m" — the sun against the clock, rounded to the minute. */
+export function clockGap(minutes: number): string {
+  const t = Math.round(minutes);
+  const a = Math.abs(t);
+  const sign = t > 0 ? '+' : t < 0 ? '−' : '±';
+  return a < 60 ? `${sign}${a}m` : `${sign}${dur(a)}`;
+}
+
 export function deg(v: number, digits = 1): string {
   return `${v.toFixed(digits).replace('-', '−')}°`;
 }

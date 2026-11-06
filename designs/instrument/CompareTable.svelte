@@ -9,14 +9,14 @@
   import { visibleLevel } from '$core/charts/palette';
   import { app, MAX_PLACES } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
-  import { daySummary } from '$core/state/views';
+  import { clockSummary, daySummary } from '$core/state/views';
   import { formatClock, formatMinutes, formatOffset, compassPoint, timeZoneName } from '$core/time/format';
   import { civilDateOf, minutesOfDay, wallMidnight } from '$core/time/timescale';
   import { formatCoordinates } from '$core/geo/place';
-  import { deg, delta, dur, durDelta, PHASE_CODE } from './lib';
+  import { clockGap, deg, delta, dur, durDelta, PHASE_CODE } from './lib';
   import { ui } from './ui.svelte';
 
-  type SortKey = 'order' | 'name' | 'clock' | 'phase' | 'alt' | 'az' | 'rise' | 'set' | 'len' | 'change' | 'am' | 'pm' | 'noon' | 'noonAlt';
+  type SortKey = 'order' | 'name' | 'clock' | 'phase' | 'alt' | 'az' | 'rise' | 'set' | 'len' | 'change' | 'am' | 'pm' | 'noon' | 'noonAlt' | 'sunClock';
 
   let sortKey = $state<SortKey>('order');
   let sortDir = $state<1 | -1>(1);
@@ -48,6 +48,7 @@
         offsetMin: scale.offsetMinutes(app.time),
         zone: settings.timeScale === 'local' ? timeZoneName(app.time, p.tz) : '',
         nowPct: nowMin >= 0 && nowMin <= 1440 ? (nowMin / 1440) * 100 : null,
+        sunClock: clockSummary(p)!.day.total,
         vsSelected: selLen != null && p.id !== sel?.id ? s.day.daylightMin - selLen : null,
       };
     });
@@ -70,6 +71,7 @@
     pm: (r) => r.s.eveningChange ?? -Infinity,
     noon: (r) => r.s.day.solarNoon.minutes,
     noonAlt: (r) => r.s.day.solarNoon.altitude,
+    sunClock: (r) => r.sunClock,
   };
 
   const sorted = $derived.by(() => {
@@ -130,6 +132,7 @@
     { key: 'pm', label: 'Δ PM', title: 'Part of the change won or lost in the evening (sunset later: +, earlier: −)', cls: 'r' },
     { key: 'noon', label: 'Noon', title: 'Solar noon: when the sun is highest', cls: 'r' },
     { key: 'noonAlt', label: 'Noon alt', title: 'Sun altitude at solar noon', cls: 'r' },
+    { key: 'sunClock', label: 'Sun − clk', title: 'Solar noon on the place’s clock against 12:00: the sun behind (+) or ahead of (−) the clock', cls: 'r' },
   ];
 </script>
 
@@ -190,6 +193,7 @@
           {/each}
           <td class="num r">{formatMinutes(r.s.day.solarNoon.minutes, hc)}</td>
           <td class="num r">{deg(r.s.day.solarNoon.altitude)}</td>
+          <td class="num r">{clockGap(r.sunClock)}</td>
           <td class="strip-c">
             <div class="strip" style="background: {strip(r)}">
               {#if r.nowPct != null}<span class="now" style="left: {r.nowPct}%"></span>{/if}

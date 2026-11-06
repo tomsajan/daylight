@@ -8,9 +8,12 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
 
 - **3D globe** with the live day/night line, twilight zones, city lights at night and the point where the sun is overhead;
   zoomed in, sharper imagery of the area in view, down to 500 m.
-- **Year chart** in three modes: sunrise, sunset and twilight bands; hours of daylight; and the **daily change**, how
+- **Year chart** in four modes: sunrise, sunset and twilight bands; hours of daylight; the **daily change**, how
   much daylight is gained or lost each day, split into the part won in the morning (sunrise moving) and in the
-  evening (sunset moving).
+  evening (sunset moving); and **sun against the clock**, when solar noon falls on the place's clock through the
+  year, made up of the equation of time, the place's longitude in its time zone and summer time, with the days the
+  clock and the sun agree, and when they would on standard time all year. It follows the chosen clock: on mean
+  solar time only the equation of time is left.
 - **Day chart** of the sun's altitude, hour by hour.
 - **Time simulation** from real time up to a month per second, forwards or backwards. Drag the sun in either chart to
   move through time.
@@ -156,7 +159,8 @@ Other commands:
 
 ```
 src/core/            shared engine, used by every design
-  astro/             sun position (NOAA/Meeus) and daily light: sunrise, sunset, twilights, polar day/night
+  astro/             sun position (NOAA/Meeus) and daily light: sunrise, sunset, twilights, polar day/night;
+                     the sun against the clock
   time/              time scales (local, UTC, mean & apparent solar time) and formatting
   geo/               places, time zone lookup, geocoding, "where am I"
   eclipse/           solar eclipses 1980-2100 from Besselian elements: local circumstances, central line, limits,

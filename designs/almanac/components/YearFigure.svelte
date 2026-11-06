@@ -8,11 +8,11 @@
 <script lang="ts">
   import { app, MAX_PLACES } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
-  import { currentMinutes, orderedPlaces, selectedDayIndex } from '$core/state/views';
+  import { clockAgreement, clockParts, clockSummary, currentMinutes, orderedPlaces, selectedDayIndex } from '$core/state/views';
   import { Light } from '$core/astro/daylight';
   import { visibleLevel } from '$core/charts/palette';
   import { addDays } from '$core/time/timescale';
-  import { formatDelta, formatDuration, formatMinutes } from '$core/time/format';
+  import { formatDelta, formatDuration, formatMinutes, formatSunClock } from '$core/time/format';
   import YearChart from '$core/charts/YearChart.svelte';
   import Splitter from '$core/components/Splitter.svelte';
   import { clamp, panelSizes } from '$core/state/layout.svelte';
@@ -28,12 +28,15 @@
   const year = $derived(app.date.year);
   const bands = $derived(settings.chartMode === 'bands');
   const change = $derived(settings.chartMode === 'change');
+  const clock = $derived(settings.chartMode === 'clock');
+  const clockFacts = $derived(clock ? clockSummary() : null);
   const others = $derived(orderedPlaces().slice(1));
   const annotations = $derived(app.selected ? yearAnnotations(app.selected) : []);
 
   // The day the readout describes: under the pointer, else the selected day.
   const readIndex = $derived(hover?.dayIndex ?? selectedDayIndex());
   const readDay = $derived(series[0]?.days[Math.max(0, Math.min((series[0]?.days.length ?? 1) - 1, readIndex))]);
+  const readClock = $derived(series[0]?.clock?.[Math.max(0, Math.min((series[0]?.clock?.length ?? 1) - 1, readIndex))]);
   const readPrev = $derived(readIndex > 0 ? series[0]?.days[readIndex - 1] : series[0]?.previous);
 
   const legend = $derived(
@@ -81,12 +84,13 @@
       <button type="button" role="radio" aria-checked={bands} onclick={() => (settings.chartMode = 'bands')}>Sunrise &amp; sunset</button>
       <button type="button" role="radio" aria-checked={settings.chartMode === 'daylength'} onclick={() => (settings.chartMode = 'daylength')}>Day length</button>
       <button type="button" role="radio" aria-checked={change} onclick={() => (settings.chartMode = 'change')}>Daily change</button>
+      <button type="button" role="radio" aria-checked={clock} onclick={() => (settings.chartMode = 'clock')}>Sun and clock</button>
     </div>
     <div class="zoom" role="group" aria-label="Zoom">
       <span class="zl">Dates</span>
       <button type="button" onclick={() => chart?.zoomOut()} disabled={!zoomed.x} aria-label="Zoom out dates" title="Show more days">−</button>
       <button type="button" onclick={() => chart?.zoomIn()} aria-label="Zoom in dates" title="Show fewer days, around the selected date">+</button>
-      <span class="zl">{bands ? 'Hours' : change ? 'Minutes' : 'Length'}</span>
+      <span class="zl">{bands ? 'Hours' : change || clock ? 'Minutes' : 'Length'}</span>
       <button type="button" onclick={() => chart?.zoomTimeOut()} disabled={!zoomed.y} aria-label="Zoom out hours" title="Show more of the day">−</button>
       <button type="button" onclick={() => chart?.zoomTimeIn()} aria-label="Zoom in hours" title="Show less of the day">+</button>
       <button type="button" class="reset" onclick={() => chart?.resetZoom()} disabled={!zoomed.x && !zoomed.y}>Whole year</button>
@@ -130,6 +134,8 @@
         midnight sun, the sun never sets.
       {:else if readDay.polarNight}
         polar night, the sun never rises.
+      {:else if clock && readClock}
+        solar noon at {formatMinutes(720 + readClock.total, hc)} on the clock, the sun {formatSunClock(readClock.total)}: {clockParts(readClock)}.
       {:else if change && readPrev}
         {formatDuration(readDay.daylightMin)} of daylight, {Math.round(Math.abs(readDay.daylightMin - readPrev.daylightMin) * 60) < 1
           ? 'the same as the day before'
@@ -167,6 +173,17 @@
           <li><span class="sw line" style="--c: {inkOf(p)}"></span>{p.name} <em>total</em></li>
         {/each}
       </ul>
+    {:else if clock}
+      <ul class="key" aria-label="Places">
+        {#each orderedPlaces() as p (p.id)}
+          <li><span class="sw line" style="--c: {inkOf(p)}"></span>{p.name} <em>solar noon on the clock</em></li>
+        {/each}
+        <li><span class="sw line dashed"></span><span>Equation of time <em>alone</em></span></li>
+        {#if clockFacts?.standardZeros}
+          <li><span class="sw line dotted" style="--c: {app.selected ? inkOf(app.selected) : undefined}"></span><span>Standard time all year <em>{app.selected?.name}, no summer time</em></span></li>
+        {/if}
+        <li><span class="sw dot" style="--c: {app.selected ? inkOf(app.selected) : undefined}"></span><span>Clock and sun agree <em>{app.selected?.name}</em></span></li>
+      </ul>
     {:else}
       <ul class="key" aria-label="Places">
         {#each orderedPlaces() as p (p.id)}
@@ -190,6 +207,12 @@
       How much daylight {app.selected?.name ?? 'the selected place'} gains or loses from one day to the next through {year}. The dashed line is the
       part won or lost in the morning, as sunrise moves; the dotted line is the evening, as sunset moves. Together they make the total. Around the
       solstices they can pull in opposite directions: just before the shortest day the evenings already lengthen while the mornings still darken.
+    {:else if clock}
+      When the sun stands highest on {year}’s days, read on {app.selected?.name ?? 'the place'}’s clock against 12:00; above the zero line the
+      sun is behind the clock. Three things set it apart. The equation of time, the dashed line, moves the sun up to 16 minutes ahead of its mean
+      pace and 14 behind through the year, and is zero on four days. The time zone keeps one clock across many longitudes, 4 minutes for each
+      degree from its meridian. Summer time adds an hour. Clock and sun agree only where these cancel out.
+      {#if clockFacts}{clockAgreement(clockFacts, dayMonth)}{/if}
     {:else}
       Hours of daylight on each day of {year}, one line per place{app.places.length < MAX_PLACES ? ' (add places below to compare them)' : ''}. The
       curves cross at the equinoxes, when day and night are close to equal everywhere.
@@ -369,6 +392,16 @@
   }
   .sw.dashed {
     border-top: 1.5px dashed var(--muted);
+  }
+  .sw.dotted {
+    border-top: 2px dotted var(--c, var(--ink));
+  }
+  .sw.dot {
+    width: 9px;
+    height: 9px;
+    margin: 0 4.5px;
+    border-radius: 50%;
+    border: 2px solid var(--c, var(--ink));
   }
   .sw.now {
     border-top: 2px solid var(--now);

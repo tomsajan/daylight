@@ -74,6 +74,7 @@
         <label><input type="radio" name="dl-chart" value="bands" bind:group={settings.chartMode} /><span>Sunrise &amp; sunset</span></label>
         <label><input type="radio" name="dl-chart" value="daylength" bind:group={settings.chartMode} /><span>Day length</span></label>
         <label><input type="radio" name="dl-chart" value="change" bind:group={settings.chartMode} /><span>Daily change</span></label>
+        <label><input type="radio" name="dl-chart" value="clock" bind:group={settings.chartMode} /><span>Sun vs clock</span></label>
       </div>
     </fieldset>
   {/if}

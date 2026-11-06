@@ -15,7 +15,7 @@
   import Panel from './Panel.svelte';
   import Icon from './Icon.svelte';
   import { ICON } from './icons';
-  import { addMonths, delta, dur } from './lib';
+  import { addMonths, clockGap, delta, dur } from './lib';
   import { instrumentPalette } from './palette';
 
   let chart: YearChart | undefined = $state();
@@ -33,6 +33,7 @@
   const cursorPrev = $derived(cursorIndex > 0 ? series[0]?.days[cursorIndex - 1] : series[0]?.previous);
   const cursorChange = $derived(settings.chartMode === 'change' && cursorDay && cursorPrev ? daylightChange(cursorPrev, cursorDay) : null);
   const mode = $derived(settings.chartMode);
+  const cursorClock = $derived(mode === 'clock' ? series[0]?.clock?.[Math.max(0, Math.min((series[0]?.clock?.length ?? 1) - 1, cursorIndex))] : undefined);
 
   function pickDay(dayIndex: number) {
     app.setDate(addDays({ year: app.date.year, month: 1, day: 1 }, dayIndex));
@@ -50,6 +51,7 @@
       <button type="button" class="btn" role="radio" aria-checked={settings.chartMode === 'bands'} class:on={settings.chartMode === 'bands'} onclick={() => (settings.chartMode = 'bands')} title="Light through each day: sunrise, sunset and twilight (M)">Rise / set</button>
       <button type="button" class="btn" role="radio" aria-checked={settings.chartMode === 'daylength'} class:on={settings.chartMode === 'daylength'} onclick={() => (settings.chartMode = 'daylength')} title="Hours of daylight per day (M)">Day length</button>
       <button type="button" class="btn" role="radio" aria-checked={mode === 'change'} class:on={mode === 'change'} onclick={() => (settings.chartMode = 'change')} title="Daylight gained or lost per day, split into morning and evening (M)">Δ / day</button>
+      <button type="button" class="btn" role="radio" aria-checked={mode === 'clock'} class:on={mode === 'clock'} onclick={() => (settings.chartMode = 'clock')} title="Solar noon on the clock against 12:00: how far the sun is behind (+) or ahead of (−) the clock (M)">Sun − clock</button>
     </div>
     <div class="zoom">
       <span class="lbl" title="Zoom the date axis">Dates</span>
@@ -57,7 +59,7 @@
         <button type="button" class="btn" onclick={() => chart?.zoomOut()} disabled={!zoomed.x} aria-label="Zoom out dates" title="Show more days"><Icon d={ICON.minus} /></button>
         <button type="button" class="btn" onclick={() => chart?.zoomIn()} aria-label="Zoom in dates" title="Show fewer days, around the selected date"><Icon d={ICON.plus} /></button>
       </div>
-      <span class="lbl" title="Zoom the vertical axis">{mode === 'change' ? 'Minutes' : 'Hours'}</span>
+      <span class="lbl" title="Zoom the vertical axis">{mode === 'change' || mode === 'clock' ? 'Minutes' : 'Hours'}</span>
       <div class="seg">
         <button type="button" class="btn" onclick={() => chart?.zoomTimeOut()} disabled={!zoomed.y} aria-label="Zoom out hours" title="Show more hours"><Icon d={ICON.minus} /></button>
         <button type="button" class="btn" onclick={() => chart?.zoomTimeIn()} aria-label="Zoom in hours" title="Show fewer hours"><Icon d={ICON.plus} /></button>
@@ -92,9 +94,19 @@
     {#if cursorDay}
       <div class="readout num" class:hovering={hover}>
         <span><b class="lbl">{hover ? 'Cursor' : 'Selected'}</b>{formatDate(cursorDay.date, 'medium')}</span>
-        <span><b class="lbl">Rise</b>{cursorDay.sunrise ? formatMinutes(cursorDay.sunrise.minutes, hc) : '—'}</span>
-        <span><b class="lbl">Set</b>{cursorDay.sunset ? formatMinutes(cursorDay.sunset.minutes, hc) : '—'}</span>
-        <span><b class="lbl">Daylight</b>{dur(cursorDay.daylightMin)}</span>
+        {#if cursorClock}
+          <span title="Solar noon on the place's clock"><b class="lbl">Noon</b>{formatMinutes(720 + cursorClock.total, hc)}</span>
+          <span title="Sun behind (+) or ahead of (−) the clock"><b class="lbl">Sun − clock</b>{clockGap(cursorClock.total)}</span>
+          <span title="Equation of time"><b class="lbl">EoT</b>{clockGap(cursorClock.equation)}</span>
+          <span title="Time zone's standard offset against the longitude"><b class="lbl">Lon</b>{clockGap(cursorClock.longitude)}</span>
+          {#if cursorClock.summer}<span title="Summer time"><b class="lbl">DST</b>{clockGap(cursorClock.summer)}</span>{/if}
+          {#if cursorClock.kind === 'solar-mean'}<span class="hint">Mean solar time: the equation of time alone</span>{/if}
+          {#if cursorClock.kind === 'solar-apparent'}<span class="hint">Sundial time follows the sun</span>{/if}
+        {:else}
+          <span><b class="lbl">Rise</b>{cursorDay.sunrise ? formatMinutes(cursorDay.sunrise.minutes, hc) : '—'}</span>
+          <span><b class="lbl">Set</b>{cursorDay.sunset ? formatMinutes(cursorDay.sunset.minutes, hc) : '—'}</span>
+          <span><b class="lbl">Daylight</b>{dur(cursorDay.daylightMin)}</span>
+        {/if}
         {#if cursorChange}
           <span class:up={cursorChange.total > 0.004} class:down={cursorChange.total < -0.004}><b class="lbl">Δ</b>{delta(cursorChange.total)}</span>
           {#if cursorChange.morning != null && cursorChange.evening != null}
@@ -107,11 +119,16 @@
         {/if}
         {#each series.slice(1) as s (s.id)}
           {@const d = s.days[Math.max(0, Math.min(s.days.length - 1, cursorIndex))]}
-          {#if d}<span class="other"><i class="sw" style="--c: {s.color}"></i>{dur(d.daylightMin)}</span>{/if}
+          {@const c = s.clock?.[Math.max(0, Math.min(s.clock.length - 1, cursorIndex))]}
+          {#if mode === 'clock' && c}<span class="other"><i class="sw" style="--c: {s.color}"></i>{clockGap(c.total)}</span>
+          {:else if d}<span class="other"><i class="sw" style="--c: {s.color}"></i>{dur(d.daylightMin)}</span>{/if}
         {/each}
         {#if mode === 'change'}
           <span class="hint long">Δ per day: dashed = morning (sunrise), dotted = evening (sunset). Drag the day line to move the date.</span>
           <span class="hint short">Dashed: morning · dotted: evening</span>
+        {:else if mode === 'clock'}
+          <span class="hint long">Above 0 the sun is behind the clock. Dashed: equation of time alone; dotted: standard time all year; rings: clock = sun.</span>
+          <span class="hint short">Dashed: equation of time · rings: clock = sun</span>
         {:else if mode === 'bands'}
           <span class="hint long">Drag the sun to move date and time (Shift: one axis), the day line to move the date. Wheel to zoom, double-click to reset.</span>
           <span class="hint short">Drag the sun to change date and time</span>

@@ -2,8 +2,8 @@ import type { SunriseDefinition } from '../astro/daylight';
 import type { TimeScaleKind } from '../time/timescale';
 import { resetLayout } from './layout.svelte';
 
-/** Year chart: light bands, hours of daylight, or the day-to-day change. */
-export type ChartMode = 'bands' | 'daylength' | 'change';
+/** Year chart: light bands, hours of daylight, the day-to-day change, or the sun against the clock. */
+export type ChartMode = 'bands' | 'daylength' | 'change' | 'clock';
 
 export interface Settings {
   /** Which clock times are shown in. */

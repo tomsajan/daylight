@@ -9,12 +9,12 @@
   import { app } from '$core/state/app.svelte';
   import { yearAnnotations } from '$core/state/seasons';
   import { settings } from '$core/state/settings.svelte';
-  import { currentMinutes, daySeries, selectedDayIndex, yearSeries } from '$core/state/views';
+  import { clockAgreement, clockParts, clockSummary, currentMinutes, daySeries, selectedDayIndex, yearSeries } from '$core/state/views';
   import YearChart from '$core/charts/YearChart.svelte';
   import DayChart from '$core/charts/DayChart.svelte';
   import { Light } from '$core/astro/daylight';
   import { addDays } from '$core/time/timescale';
-  import { formatDate } from '$core/time/format';
+  import { formatDate, formatSunClock } from '$core/time/format';
   import { LIGHT_COLORS, LIGHT_SHORT, OBS_CHART_PALETTE } from './palette';
   import Icon from './Icon.svelte';
   import Splitter from '$core/components/Splitter.svelte';
@@ -61,6 +61,8 @@
     return untrack(() => (app.selected ? yearAnnotations(app.selected) : []));
   });
 
+  const clock = $derived(settings.chartMode === 'clock' ? clockSummary() : null);
+
   // Line colours only matter once there is more than one place.
   const lines = $derived(app.places.length > 1 ? app.places : []);
 
@@ -90,6 +92,12 @@
             aria-pressed={settings.chartMode === 'change'}
             onclick={() => (settings.chartMode = 'change')}
             title="Daylight gained or lost each day, and whether in the morning or the evening">Daily change</button
+          >
+          <button
+            type="button"
+            aria-pressed={settings.chartMode === 'clock'}
+            onclick={() => (settings.chartMode = 'clock')}
+            title="When the sun is highest on the clock, against 12:00">Sun vs clock</button
           >
         </div>
         <div class="zoom" role="group" aria-label="Zoom dates">
@@ -163,6 +171,8 @@
       {#if settings.chartMode === 'change'}
         <li><span class="sw" style:background={LIGHT_COLORS[Light.Day]}></span>Days getting longer</li>
         <li><span class="sw" style:background={LIGHT_COLORS[Light.Civil]}></span>Days getting shorter</li>
+      {:else if settings.chartMode === 'clock'}
+        <!-- The chart draws its own legend. -->
       {:else}
         {#each legend as l (l)}
           <li><span class="sw" style:background={LIGHT_COLORS[l]}></span>{LIGHT_SHORT[l]}</li>
@@ -176,6 +186,9 @@
       {#if settings.chartMode === 'change'}
         Minutes of daylight gained or lost since the day before. The dashed line is the part won or lost in the morning (sunrise moving), the dotted
         line the evening (sunset moving). Drag the red line to change the day.
+      {:else if settings.chartMode === 'clock' && clock}
+        Minutes from 12:00 on the clock to solar noon, when the sun is highest; above zero the sun is behind the clock.{#if !clock.always}{' '}In {clock.place.name} on {formatDate(app.date, 'short')} it is {formatSunClock(clock.day.total)}: {clockParts(clock.day)}.{/if}
+        {clockAgreement(clock, (d) => formatDate(d, 'short'))}
       {:else if touch}
         <strong>Drag the sun</strong> to move through time, or the red line to change the day. Tap to jump, pinch to zoom, double-tap to reset.
       {:else}

@@ -7,6 +7,7 @@
  *   app.selected?.name, app.time, app.play(), app.addPlace(place) ...
  */
 import { computeDay, computeYear, type DayLight, type DaylightOptions } from '../astro/daylight';
+import { sunClockYear, type SunClock } from '../astro/clock';
 import { makePlace, type Place } from '../geo/place';
 import { guessHomePlace } from '../geo/locate';
 import { reverseGeocode } from '../geo/geocode';
@@ -225,6 +226,19 @@ class AppState {
   dayFor(place: Place, date: CivilDate = this.date): DayLight {
     return computeDay(place, date, this.scaleFor(place), this.daylightOptions);
   }
+
+  /** The sun against the place's clock, in the chosen time scale, on every day of a year; cached. */
+  clockYearFor(place: Place, year = this.date.year): SunClock[] {
+    const scale = this.scaleFor(place);
+    const key = `${place.lon},${place.tz}|${year}|${scale.kind}`;
+    let data = clockCache.get(key);
+    if (!data) {
+      if (clockCache.size > 40) clockCache.delete(clockCache.keys().next().value!);
+      data = sunClockYear(place, year, scale);
+      clockCache.set(key, data);
+    }
+    return data;
+  }
 }
 
 export const app = new AppState();
@@ -232,6 +246,7 @@ export const app = new AppState();
 // --- Year cache --------------------------------------------------------------
 
 const yearCache = new Map<string, DayLight[]>();
+const clockCache = new Map<string, SunClock[]>();
 
 function cachedYear(place: Place, year: number, scale: TimeScale, opts: DaylightOptions): DayLight[] {
   const key = `${place.lat},${place.lon},${place.tz}|${year}|${scale.kind}|${opts.sunrise}|${opts.observerHeight}`;

@@ -136,7 +136,7 @@
         break;
       case 'm':
       case 'M':
-        settings.chartMode = settings.chartMode === 'bands' ? 'daylength' : settings.chartMode === 'daylength' ? 'change' : 'bands';
+        settings.chartMode = settings.chartMode === 'bands' ? 'daylength' : settings.chartMode === 'daylength' ? 'change' : settings.chartMode === 'change' ? 'clock' : 'bands';
         break;
       case '/':
         ui.focusSearch();

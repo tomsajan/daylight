@@ -106,6 +106,7 @@
       <button type="button" aria-pressed={settings.chartMode === 'bands'} onclick={() => (settings.chartMode = 'bands')}>Sunrise &amp; sunset</button>
       <button type="button" aria-pressed={settings.chartMode === 'daylength'} onclick={() => (settings.chartMode = 'daylength')}>Day length</button>
       <button type="button" aria-pressed={settings.chartMode === 'change'} onclick={() => (settings.chartMode = 'change')}>Daily change</button>
+      <button type="button" aria-pressed={settings.chartMode === 'clock'} onclick={() => (settings.chartMode = 'clock')}>Sun vs clock</button>
     </div>
   </section>
 

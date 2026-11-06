@@ -147,6 +147,7 @@
         <option value="bands">Sunrise &amp; sunset</option>
         <option value="daylength">Day length</option>
         <option value="change">Daily change</option>
+        <option value="clock">Sun vs clock</option>
       </select>
       <button class="dl-btn" onclick={() => yearChart?.zoomIn()}>+</button>
       <button class="dl-btn" onclick={() => yearChart?.zoomOut()}>−</button>

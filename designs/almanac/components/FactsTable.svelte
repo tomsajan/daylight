@@ -2,16 +2,17 @@
 <script lang="ts">
   import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
-  import { daySummary, sunNow } from '$core/state/views';
+  import { clockAgreement, clockParts, clockSummary, daySummary, sunNow } from '$core/state/views';
   import { Light, LIGHT_NAMES, type SunEvent } from '$core/astro/daylight';
   import { sunPosition } from '$core/astro/sun';
-  import { formatClock, formatDelta, formatDuration, formatMinutes, formatOffset, formatShift } from '$core/time/format';
+  import { formatClock, formatDelta, formatDuration, formatMinutes, formatOffset, formatShift, formatSunClock } from '$core/time/format';
   import { formatCoordinates } from '$core/geo/place';
   import { TIME_SCALE_LABELS } from '$core/time/timescale';
   import { dayMonth, direction, polarStats, zoneName } from '../almanac.svelte';
 
   const s = $derived(daySummary());
   const sun = $derived(sunNow());
+  const clock = $derived(clockSummary());
   const hc = $derived(settings.hourCycle);
   const polar = $derived(app.selected ? polarStats(app.selected) : null);
 
@@ -85,6 +86,15 @@
             <span class="n">sun {s.day.solarNoon.altitude.toFixed(1)}° {s.day.solarNoon.altitude >= 0 ? 'high' : 'below the horizon'}</span>
           </td>
         </tr>
+        {#if clock}
+          <tr>
+            <th scope="row">Sun and clock</th>
+            <td>
+              <span class="v">{clock.always ? 'Together' : `The sun ${formatSunClock(clock.day.total)}`}</span>
+              <span class="n">{clockParts(clock.day)}. {clockAgreement(clock, dayMonth).replace(' (the dotted line)', '')}</span>
+            </td>
+          </tr>
+        {/if}
         <tr>
           <th scope="row">First light <small>civil dawn</small></th>
           <td>

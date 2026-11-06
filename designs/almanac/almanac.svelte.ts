@@ -80,7 +80,7 @@ export function almanacPalette(): ChartPalette {
 
 export function almanacYearSeries(): YearSeries[] {
   const lastYear = addDays({ year: app.date.year, month: 1, day: 1 }, -1);
-  return orderedPlaces().map((p) => ({ id: p.id, name: p.name, color: inkOf(p), days: app.yearFor(p), previous: app.dayFor(p, lastYear) }));
+  return orderedPlaces().map((p) => ({ id: p.id, name: p.name, color: inkOf(p), days: app.yearFor(p), previous: app.dayFor(p, lastYear), clock: app.clockYearFor(p) }));
 }
 
 export function almanacDaySeries(): DaySeries[] {

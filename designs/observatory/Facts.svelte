@@ -5,9 +5,9 @@
 <script lang="ts">
   import { app } from '$core/state/app.svelte';
   import { settings } from '$core/state/settings.svelte';
-  import type { DaySummary } from '$core/state/views';
+  import { clockParts, clockSummary, clockZerosText, type DaySummary } from '$core/state/views';
   import { Light, LIGHT_NAMES } from '$core/astro/daylight';
-  import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatMinutes, formatShift, timeZoneName } from '$core/time/format';
+  import { compassPoint, formatClock, formatDate, formatDelta, formatDuration, formatMinutes, formatShift, formatSunClock, timeZoneName } from '$core/time/format';
   import { TIME_SCALE_LABELS } from '$core/time/timescale';
   import { formatCoordinates } from '$core/geo/place';
   import { LIGHT_COLORS } from './palette';
@@ -35,6 +35,7 @@
     const alt = Math.abs(sun.altitude).toFixed(1);
     return sun.altitude >= 0 ? `Sun ${alt}° above the horizon, bearing ${dir}` : `Sun ${alt}° below the horizon, bearing ${dir}`;
   });
+  const clock = $derived(clockSummary(summary.place));
   const changeText = $derived(Math.abs(summary.change) < 1 / 120 ? 'Same as yesterday' : `${formatDelta(summary.change)} vs yesterday`);
 </script>
 
@@ -105,6 +106,16 @@
     {/if}
     <dt>Solar noon</dt>
     <dd>{formatMinutes(day.solarNoon.minutes, hc)}, sun {day.solarNoon.altitude.toFixed(1)}° high</dd>
+    {#if clock}
+      <dt>Sun vs clock</dt>
+      <dd title="Solar noon against 12:00 on the clock: {clockParts(clock.day)}">Sun {formatSunClock(clock.day.total)}</dd>
+      <dt>Clock = sun</dt>
+      <dd>{clockZerosText(clock.zeros, (d) => formatDate(d, 'short'), clock.always)}</dd>
+      {#if clock.standardZeros}
+        <dt title="On standard time all year, without summer time">… no summer time</dt>
+        <dd>{clockZerosText(clock.standardZeros, (d) => formatDate(d, 'short'))}</dd>
+      {/if}
+    {/if}
     <dt>Longest day</dt>
     <dd>{formatDate(summary.longest.date, 'short')}, {formatDuration(summary.longest.daylightMin)}</dd>
     <dt>Shortest day</dt>
