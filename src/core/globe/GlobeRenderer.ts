@@ -12,6 +12,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { subsolarPoint } from '../astro/sun';
 import { eclipseDeltaT, msToElementTime, type SolarEclipse } from '../eclipse/elements';
 import { ECLIPSE_GLSL, eclipseUniforms } from '../eclipse/glsl';
+import { choosePatch, DetailTiles, patchBox, patchKey, type DetailLayer, type Patch, type ViewBounds } from './detail';
 // Imported, not served from /public: Vite then emits hashed files with URLs that work
 // from every page (designs live in subfolders) and under any base path.
 import dayTexture from './textures/earth-blue-marble.jpg';
@@ -132,6 +133,12 @@ const earthFragment = /* glsl */ `
   uniform sampler2D dayMap;
   uniform sampler2D nightMap;
   uniform sampler2D waterMap;
+  // Sharper pictures of the part in view (see detail.ts), and where they lie: u, v of the
+  // south west corner and the spans; no span, no picture.
+  uniform sampler2D dayDetail;
+  uniform sampler2D nightDetail;
+  uniform vec4 dayBox;
+  uniform vec4 nightBox;
   uniform vec3 sunDir;
   uniform float bands;
   uniform float lines;
@@ -168,6 +175,17 @@ ${ECLIPSE_GLSL}
     return 1.0 - smoothstep(0.0, w, abs(value - level));
   }
 
+  // The sharper picture over the globe's own image where it has one, faded in from its edges.
+  // geo: texture coordinates worked out exactly from the point on the sphere, which the
+  // mesh's own only approximate between its vertices, by more than a 500 m pixel.
+  vec3 sharpen(vec3 base, sampler2D detail, vec4 box, vec2 geo) {
+    if (box.z <= 0.0) return base;
+    vec2 d = vec2(fract(geo.x - box.x) / box.z, (geo.y - box.y) / box.w);
+    vec2 edge = min(d, 1.0 - d);
+    float w = smoothstep(0.0, 0.04, min(edge.x, edge.y));
+    return mix(base, texture2D(detail, clamp(d, 0.0, 1.0)).rgb, w);
+  }
+
   void main() {
     vec3 n = normalize(vNormal);
     float s = dot(n, sunDir);
@@ -193,8 +211,10 @@ ${ECLIPSE_GLSL}
       shadowEdge = (isoLine(m - r.L1, 0.0) * 0.45 + isoLine(m - abs(r.L2), 0.0) * 0.95) * up;
     }
 
-    vec3 day = texture2D(dayMap, vUv).rgb;
-    vec3 night = texture2D(nightMap, vUv).rgb;
+    vec3 g = normalize(vWorld);
+    vec2 geo = vec2(atan(-g.z, g.x) / 6.2831853 + 0.5, asin(clamp(g.y, -1.0, 1.0)) / 3.1415927 + 0.5);
+    vec3 day = sharpen(texture2D(dayMap, vUv).rgb, dayDetail, dayBox, geo);
+    vec3 night = sharpen(texture2D(nightMap, vUv).rgb, nightDetail, nightBox, geo);
 
     // A gentle lambert falloff in daylight keeps the globe looking round, but
     // stays well above twilight so day and night never blur together.
@@ -313,6 +333,19 @@ export class GlobeRenderer {
   private resizeObserver: ResizeObserver;
   private flight: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number } | null = null;
   private disposed = false;
+  /** The sharper pictures of the part in view; see detail.ts. */
+  private detail = new DetailTiles();
+  private detailState: Record<DetailLayer, { key: string | null; pending: string | null; abort: AbortController | null; texture: THREE.Texture | null }> = {
+    day: { key: null, pending: null, abort: null, texture: null },
+    night: { key: null, pending: null, abort: null, texture: null },
+  };
+  /** The camera and time the pictures were last chosen for, and the wait before choosing anew. */
+  private detailFor = '';
+  private detailTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Degrees per pixel of the globe's own images, and the most tiles a picture may take. */
+  private baseDegrees = 360 / 4096;
+  private patchLimit = { cols: 4, rows: 4 };
+  private blank = new THREE.Texture();
 
   constructor(container: HTMLElement, options: Partial<GlobeOptions> = {}) {
     this.container = container;
@@ -342,7 +375,8 @@ export class GlobeRenderer {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = false;
-    this.controls.minDistance = 1.15;
+    // About 500 km up: the sharper tiles (500 m) are about a screen pixel there.
+    this.controls.minDistance = 1.08;
     this.controls.maxDistance = 10;
     this.controls.zoomSpeed = 0.8;
     this.controls.autoRotateSpeed = 0.4;
@@ -378,6 +412,8 @@ export class GlobeRenderer {
       return t;
     };
     const sharp = sharpTextures(this.renderer);
+    this.baseDegrees = 360 / (sharp ? 8192 : 4096);
+    this.patchLimit = sharp ? { cols: 8, rows: 4 } : { cols: 4, rows: 4 };
 
     this.earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 128, 64),
@@ -388,6 +424,10 @@ export class GlobeRenderer {
           dayMap: { value: tex(sharp ? [dayTexture8k, dayTexture] : [dayTexture]) },
           nightMap: { value: tex(sharp ? [nightTexture8k, nightTexture] : [nightTexture]) },
           waterMap: { value: tex([waterTexture], false) },
+          dayDetail: { value: this.blank },
+          nightDetail: { value: this.blank },
+          dayBox: { value: new THREE.Vector4() },
+          nightBox: { value: new THREE.Vector4() },
           sunDir: { value: this.sunDir },
           bands: { value: 1 },
           lines: { value: 1 },
@@ -551,6 +591,9 @@ export class GlobeRenderer {
 
   dispose(): void {
     this.disposed = true;
+    clearTimeout(this.detailTimer);
+    for (const s of Object.values(this.detailState)) s.abort?.abort();
+    this.detail.dispose();
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
     this.controls.dispose();
@@ -700,6 +743,118 @@ export class GlobeRenderer {
     this.dirty = false;
     this.renderer.render(this.scene, this.camera);
     this.positionOverlay();
+    this.watchDetail();
+  }
+
+  // --- Sharper pictures of the part in view -----------------------------------
+
+  /** Chooses the pictures anew once the camera (or the hour) has stayed put for a moment. */
+  private watchDetail(): void {
+    const p = this.camera.position;
+    const key = `${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)},${Math.floor(this.time / 600_000)},${this.opts.nightLights}`;
+    if (key === this.detailFor) return;
+    this.detailFor = key;
+    clearTimeout(this.detailTimer);
+    this.detailTimer = setTimeout(() => this.updateDetail(), 400);
+  }
+
+  private updateDetail(): void {
+    if (this.disposed) return;
+    const view = this.viewBounds();
+    const patch = view && choosePatch(view.bounds, view.resolution, this.baseDegrees, this.patchLimit.cols, this.patchLimit.rows);
+    // Only the pictures that show: city lights where it is dark somewhere in view, the day
+    // side where it is light or the night side is drawn bright enough to see it.
+    const centre = this.camera.position.clone().normalize();
+    const alt = (Math.asin(THREE.MathUtils.clamp(centre.dot(this.sunDir), -1, 1)) * 180) / Math.PI;
+    const r = view?.radius ?? 90;
+    this.showDetail('day', patch && (alt + r > -18 || this.opts.nightBrightness >= 0.1) ? patch : null);
+    this.showDetail('night', patch && this.opts.nightLights && alt - r < -4 ? patch : null);
+  }
+
+  /**
+   * The part of the globe in view, the degrees of latitude a screen pixel spans at its
+   * centre, and how far from the centre the view reaches, degrees; null where the view
+   * goes past the globe's edge, too far out for the sharper pictures to matter.
+   */
+  private viewBounds(): { bounds: ViewBounds; resolution: number; radius: number } | null {
+    const dist = this.camera.position.length();
+    const height = this.renderer.getDrawingBufferSize(new THREE.Vector2()).y;
+    const resolution = (((dist - 1) * 2 * Math.tan((this.camera.fov * Math.PI) / 360)) / height) * (180 / Math.PI);
+    const centre = vectorToLatLon(this.camera.position);
+    const centreDir = this.camera.position.clone().normalize();
+    const sphere = new THREE.Sphere(new THREE.Vector3(), 1);
+    const ray = new THREE.Ray();
+    const hit = new THREE.Vector3();
+    const b = { south: 90, north: -90, west: Infinity, east: -Infinity };
+    let radius = 0;
+    // A grid of points over the screen, out to its edges and corners.
+    for (let i = 0; i <= 4; i++) {
+      for (let j = 0; j <= 4; j++) {
+        const target = new THREE.Vector3(i / 2 - 1, j / 2 - 1, 0.5).unproject(this.camera);
+        ray.set(this.camera.position, target.sub(this.camera.position).normalize());
+        if (!ray.intersectSphere(sphere, hit)) return null;
+        const p = vectorToLatLon(hit);
+        let lon = p.lon;
+        while (lon - centre.lon > 180) lon -= 360;
+        while (lon - centre.lon < -180) lon += 360;
+        b.south = Math.min(b.south, p.lat);
+        b.north = Math.max(b.north, p.lat);
+        b.west = Math.min(b.west, lon);
+        b.east = Math.max(b.east, lon);
+        radius = Math.max(radius, (Math.acos(THREE.MathUtils.clamp(hit.dot(centreDir), -1, 1)) * 180) / Math.PI);
+      }
+    }
+    // Lines of latitude curve between the points: a little room each way.
+    const dLat = (b.north - b.south) * 0.04;
+    const dLon = (b.east - b.west) * 0.04;
+    return { bounds: { south: b.south - dLat, north: b.north + dLat, west: b.west - dLon, east: b.east + dLon }, resolution, radius };
+  }
+
+  /** Shows a patch for one layer, loading it first; what is shown stays until the new one is ready. */
+  private showDetail(layer: DetailLayer, patch: Patch | null): void {
+    const s = this.detailState[layer];
+    const key = patch ? patchKey(patch) : null;
+    if (key === s.pending) return;
+    s.abort?.abort();
+    s.abort = null;
+    s.pending = null;
+    if (key === s.key) return;
+    if (!patch) {
+      this.setDetail(layer, null, null);
+      return;
+    }
+    const abort = new AbortController();
+    s.abort = abort;
+    s.pending = key;
+    this.detail.draw(layer, patch, abort.signal).then((canvas) => {
+      if (abort.signal.aborted || this.disposed) return;
+      s.abort = null;
+      s.pending = null;
+      // Without the tiles (offline, say) what is shown stays; the next move tries again.
+      if (canvas) this.setDetail(layer, patch, canvas);
+    });
+  }
+
+  private setDetail(layer: DetailLayer, patch: Patch | null, canvas: HTMLCanvasElement | null): void {
+    const s = this.detailState[layer];
+    const u = this.earth.material.uniforms;
+    const map = layer === 'day' ? u.dayDetail : u.nightDetail;
+    const box = (layer === 'day' ? u.dayBox : u.nightBox).value as THREE.Vector4;
+    s.texture?.dispose();
+    s.texture = null;
+    s.key = null;
+    map.value = this.blank;
+    box.set(0, 0, 0, 0);
+    if (patch && canvas) {
+      const t = new THREE.CanvasTexture(canvas);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      map.value = t;
+      box.set(...patchBox(patch));
+      s.texture = t;
+      s.key = patchKey(patch);
+    }
+    this.dirty = true;
   }
 
   private positionOverlay(): void {

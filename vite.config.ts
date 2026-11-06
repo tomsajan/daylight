@@ -55,6 +55,15 @@ const RUNTIME_CACHING = [
     },
   },
   {
+    // The globe's sharper pictures when zoomed in: 500 m tiles from NASA GIBS, 5-150 kB each.
+    urlPattern: /^https:\/\/gibs\.earthdata\.nasa\.gov\/wmts\//,
+    handler: 'CacheFirst' as const,
+    options: {
+      cacheName: 'globe-tiles',
+      expiration: { maxEntries: 600, maxAgeSeconds: 30 * DAY, purgeOnQuotaError: true },
+    },
+  },
+  {
     // One place's horizon reads 100-200 of these.
     urlPattern: /^https:\/\/s3\.amazonaws\.com\/elevation-tiles-prod\//,
     handler: 'CacheFirst' as const,

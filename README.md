@@ -6,7 +6,8 @@ An interactive web app showing sunrise, sunset, twilight and day length through 
 3D globe and charts, and every solar and lunar eclipse from 1980 to 2100 on a zoomable map. Live at
 [daylight.tomsa.xyz](https://daylight.tomsa.xyz).
 
-- **3D globe** with the live day/night line, twilight zones, city lights at night and the point where the sun is overhead.
+- **3D globe** with the live day/night line, twilight zones, city lights at night and the point where the sun is overhead;
+  zoomed in, sharper imagery of the area in view, down to 500 m.
 - **Year chart** in three modes: sunrise, sunset and twilight bands; hours of daylight; and the **daily change**, how
   much daylight is gained or lost each day, split into the part won in the morning (sunrise moving) and in the
   evening (sunset moving).
@@ -119,6 +120,12 @@ does not report less than 4 GB of memory) it loads those, about 6 MB together, a
 the 4096 wide ones are among the files kept ahead, so the globe opens offline everywhere and stands in when the
 larger ones fail to load.
 
+Zoomed in past what those show, the globe loads sharper tiles of the area in view from
+[NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api):
+the same Blue Marble and Black Marble 2016, down to 500 m a pixel (`src/core/globe/detail.ts`). Only what shows is
+loaded: the city lights where it is dark somewhere in view, the day side where it is light. They are kept like
+the map tiles (up to 600, at most 30 days old) and cleared with them; offline, the areas seen before stay sharp.
+
 The service worker is only in the production build: `npm run build && npm run preview` to try it locally.
 `scripts/make-icons.py` draws the app icons in `public/`.
 
@@ -156,7 +163,7 @@ src/core/            shared engine, used by every design
                      and the same maths in GLSL for drawing them per pixel; lunar eclipses 1980-2100
   terrain/           elevation tiles, the skyline from a point, and the Sun or Moon against it
   state/             app state (places, time, simulation), persisted settings and panel sizes, URL sync
-  globe/             Three.js globe renderer + Svelte wrapper
+  globe/             Three.js globe renderer + Svelte wrapper; detail.ts: the sharper tiles when zoomed in
   charts/            year chart and day chart (canvas, zoomable, draggable sun)
   components/        place search, time and speed controls, settings panel, design and app switchers, splitter
   offline/           service worker registration, offline storage size and clearing
@@ -199,7 +206,7 @@ the skyline, go and look.
 
 ## Credits
 
-- Earth imagery (public domain): NASA Blue Marble with shaded relief and bathymetry, via
+- Earth imagery (public domain): NASA Blue Marble with shaded relief and bathymetry, as an image and as tiles, via
   [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api);
   Black Marble 2016 city lights, [NASA Earth Observatory](https://earthobservatory.nasa.gov); the water mask as
   packaged by [three-globe](https://github.com/vasturiano/three-globe).

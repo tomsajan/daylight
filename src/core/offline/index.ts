@@ -9,7 +9,7 @@ import { watchInstall } from './install.svelte';
 export { install, installApp } from './install.svelte';
 
 /** The caches of things fetched from elsewhere; the app's own files are kept apart and not cleared. */
-const CLEARABLE_CACHES = ['map-tiles', 'terrain-tiles', 'map-styles'];
+const CLEARABLE_CACHES = ['map-tiles', 'terrain-tiles', 'map-styles', 'globe-tiles'];
 
 /** Registers the service worker; in a production build only, so development always runs fresh code. */
 export function registerOffline(): void {
@@ -35,7 +35,7 @@ export async function offlineUsage(): Promise<number | undefined> {
   }
 }
 
-/** Deletes the kept map and terrain tiles; the app itself stays available offline. */
+/** Deletes the kept map, terrain and globe tiles; the app itself stays available offline. */
 export async function clearOfflineTiles(): Promise<void> {
   if (typeof caches === 'undefined') return;
   await Promise.all(CLEARABLE_CACHES.map((name) => caches.delete(name)));

@@ -33,7 +33,7 @@
 {/if}
 {#if usage !== undefined}
   <div class="dl-offline">
-    <span>Offline storage: {formatBytes(usage)} <small>the app and the map tiles you have looked at</small></span>
+    <span>Offline storage: {formatBytes(usage)} <small>the app and the map and globe tiles you have looked at</small></span>
     <button type="button" disabled={clearing} onclick={clear}>Clear tiles</button>
   </div>
 {/if}
