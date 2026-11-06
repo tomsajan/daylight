@@ -222,6 +222,26 @@
   });
 
   let dragging = false;
+  let hover = $state<{ x: number; text: string } | null>(null);
+
+  /** What the chart says at a moment: the time, the Sun, the Moon and the target. */
+  function showHover(e: PointerEvent) {
+    const t = timeAt(e.offsetX);
+    if (t < span[0] || t > span[1]) return (hover = null);
+    const i = Math.max(0, Math.min(night.times.length - 1, Math.round((t - night.start) / (night.times[1] - night.times[0]))));
+    const parts = [formatClock(t, scale, hourCycle), `Sun ${Math.round(night.sunAlt[i])}°`, `Moon ${Math.round(night.moonAlt[i])}°`];
+    if (target) parts.push(`${targetName} ${Math.round(target[i])}°`);
+    hover = { x: e.offsetX, text: parts.join(' · ') };
+  }
+
+  /** Arrow keys step ten minutes, an hour with Shift. */
+  function key(e: KeyboardEvent) {
+    const step = (e.shiftKey ? 60 : 10) * 60_000;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') onpick(Math.max(span[0], time - step));
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') onpick(Math.min(span[1], time + step));
+    else return;
+    e.preventDefault();
+  }
   function at(e: PointerEvent) {
     const t = timeAt(e.offsetX);
     onpick(Math.max(span[0], Math.min(span[1], t)));
@@ -238,18 +258,38 @@
       canvas.setPointerCapture(e.pointerId);
       at(e);
     }}
-    onpointermove={(e) => dragging && at(e)}
+    onpointermove={(e) => (dragging ? at(e) : showHover(e))}
     onpointerup={() => (dragging = false)}
-    aria-label="The night: darkness, the Moon and the target's altitude; click to set the time"
+    onpointerleave={() => (hover = null)}
+    onkeydown={key}
+    aria-label="The night: darkness, the Moon and the target's altitude; click to set the time, arrow keys to step"
     role="slider"
+    aria-valuemin={span[0]}
+    aria-valuemax={span[1]}
     aria-valuenow={time}
+    aria-valuetext={formatClock(time, scale, hourCycle)}
     tabindex="0"
   ></canvas>
+  {#if hover}
+    <div class="hover" style:left="{Math.max(4, Math.min(hover.x - 70, width - 200))}px">{hover.text}</div>
+  {/if}
 </div>
 
 <style>
   .timeline {
+    position: relative;
     width: 100%;
+  }
+  .hover {
+    position: absolute;
+    top: 14px;
+    pointer-events: none;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgb(8 12 26 / 0.88);
+    color: #e6e9f2;
+    font-size: 12px;
+    white-space: nowrap;
   }
   canvas {
     display: block;

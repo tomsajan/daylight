@@ -20,7 +20,7 @@
   import { CONSTELLATION_CREDIT, DSO_CREDIT, MILKY_WAY_CREDIT, STAR_CREDIT } from '$core/sky/catalog';
   import type { View } from '$core/sky/projection';
   import { sunAltitude } from '$core/astro/sun';
-  import { addDays, civilDateOf, dateKey, toWall, type CivilDate } from '$core/time/timescale';
+  import { addDays, civilDateOf, dateKey, sameDate, toWall, type CivilDate } from '$core/time/timescale';
   import { formatClock, formatDate, formatDuration } from '$core/time/format';
   import { prefs, persistPrefs } from './prefs.svelte';
   import SkyChart from './SkyChart.svelte';
@@ -58,11 +58,17 @@
 
   // --- The night -----------------------------------------------------------------------------
 
-  /** The evening the shown time belongs to: before noon it is still the night before. */
+  /**
+   * The evening the shown time belongs to: before noon it is still the night before. Keeps its
+   * identity while the night stays the same, so what hangs on it is not redone every second.
+   */
+  let lastNight: CivilDate = { year: 0, month: 0, day: 0 };
   const nightDate = $derived.by((): CivilDate => {
     const d = civilDateOf(app.time, scale);
     const hour = (((toWall(app.time, scale) % DAY) + DAY) % DAY) / HOUR;
-    return hour < 12 ? addDays(d, -1) : d;
+    const n = hour < 12 ? addDays(d, -1) : d;
+    if (!sameDate(n, lastNight)) lastNight = n;
+    return lastNight;
   });
   const nightKey = $derived(`${planSite.lat},${planSite.lon}|${dateKey(nightDate)}|${scale.kind}|${place?.tz}`);
   const night: Night = $derived.by(() => {
