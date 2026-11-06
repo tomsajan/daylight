@@ -38,6 +38,14 @@
   const theme = $derived(prefs.nightVision ? 'dark' : resolvedTheme());
   const place = $derived(app.selected);
   const site = $derived(place ? { lat: place.lat, lon: place.lon } : { lat: 50, lon: 14 });
+  /** The place for the night's sums, once it stops moving: a marker being dragged only moves the sky. */
+  let planSite = $state(untrack(() => site));
+  $effect(() => {
+    const s = site;
+    if (untrack(() => s.lat === planSite.lat && s.lon === planSite.lon)) return;
+    const timer = setTimeout(() => (planSite = s), 250);
+    return () => clearTimeout(timer);
+  });
   const scale = $derived(app.scale);
   const hc = $derived(settings.hourCycle);
   const clock = (ms: number) => formatClock(ms, scale, hc);
@@ -56,10 +64,10 @@
     const hour = (((toWall(app.time, scale) % DAY) + DAY) % DAY) / HOUR;
     return hour < 12 ? addDays(d, -1) : d;
   });
-  const nightKey = $derived(`${site.lat},${site.lon}|${dateKey(nightDate)}|${scale.kind}|${place?.tz}`);
+  const nightKey = $derived(`${planSite.lat},${planSite.lon}|${dateKey(nightDate)}|${scale.kind}|${place?.tz}`);
   const night: Night = $derived.by(() => {
     void nightKey;
-    return untrack(() => nightOf(site, nightDate, scale));
+    return untrack(() => nightOf(planSite, nightDate, scale));
   });
   const moons = $derived.by(() => {
     void nightKey;
@@ -120,8 +128,8 @@
     void prefs.minAlt;
     return untrack(() =>
       TARGETS.map((t) => {
-        const target = targetNow(t, n.darkest.time, site);
-        return { target, vis: visibility(target, n, site, minAltFor(t)) };
+        const target = targetNow(t, n.darkest.time, planSite);
+        return { target, vis: visibility(target, n, planSite, minAltFor(t)) };
       }).sort((a, b) => b.vis.moonlessMs - a.vis.moonlessMs || b.vis.darkMs - a.vis.darkMs || b.vis.best.alt - a.vis.best.alt),
     );
   });
@@ -137,10 +145,10 @@
     const t = target;
     if (!t || t.kind === 'planet' || t.kind === 'moon') return null;
     const y = nightDate.year;
-    const key = `${site.lat},${site.lon}|${y}|${scale.kind}|${place?.tz}`;
+    const key = `${planSite.lat},${planSite.lon}|${y}|${scale.kind}|${place?.tz}`;
     const min = minAltFor(t);
     return untrack(() => {
-      if (yearCache?.key !== key) yearCache = { key, data: yearNights(site, y, scale) };
+      if (yearCache?.key !== key) yearCache = { key, data: yearNights(planSite, y, scale) };
       const nights = yearCache.data.nights;
       return {
         data: yearVisibility(t, yearCache.data, min),
