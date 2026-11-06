@@ -34,7 +34,8 @@
 
   const DAY = 86_400_000;
   const HOUR = 3_600_000;
-  const theme = $derived(resolvedTheme());
+  // Night vision needs the dark theme: a light page in red is a red lamp.
+  const theme = $derived(prefs.nightVision ? 'dark' : resolvedTheme());
   const place = $derived(app.selected);
   const site = $derived(place ? { lat: place.lat, lon: place.lon } : { lat: 50, lon: 14 });
   const scale = $derived(app.scale);
@@ -435,6 +436,7 @@
     --dl-border: var(--border);
     --dl-accent: var(--accent);
     --dl-color-scheme: dark;
+    color-scheme: var(--dl-color-scheme);
     display: grid;
     grid-template-columns: var(--panel-width, minmax(320px, 410px)) minmax(0, 1fr);
     height: 100dvh;
@@ -682,7 +684,7 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: #ff0000;
+    background: #c80000;
     mix-blend-mode: multiply;
     pointer-events: none;
   }
