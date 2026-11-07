@@ -104,8 +104,9 @@ Both:
   ranked by how long each is above a chosen altitude (30° unless changed) in the dark with the Moon down. Search
   and filter by kind.
 - **A target:** what it looks like (the lead picture and first lines of its Wikipedia article, with links to
-  Wikipedia and SIMBAD), when it is highest, when it rises and sets, its hours above the altitude tonight and how far the
-  Moon is; through the year, night by night, its dark hours with and without the Moon, and its best months.
+  Wikipedia and SIMBAD, or SIMBAD's Harvard mirror), when it is highest, when it rises and sets, its hours above the
+  altitude tonight and how far the Moon is; through the year, night by night, its dark hours with and without the
+  Moon, and its best months.
 - **The sky chart:** the sky from the place at the chosen time, as if lying on your back: stars to magnitude 6 in
   their colours, the constellations, the Milky Way, the deep-sky objects at their true size and orientation when
   zoomed in, the planets and the Moon in its phase, twilight and moonlight brightening the sky. Drag to look

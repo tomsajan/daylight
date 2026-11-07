@@ -92,7 +92,10 @@
   <div class="actions">
     <button class="dl-btn" onclick={onlook}>Show in the sky</button>
     <a class="dl-btn" href={wikipediaUrl(t)} target="_blank" rel="noopener" title="Read about it on Wikipedia">Wikipedia ↗</a>
-    {#if simbadUrl(t)}<a class="dl-btn" href={simbadUrl(t)} target="_blank" rel="noopener" title="Its data and references in SIMBAD">SIMBAD ↗</a>{/if}
+    {#if simbadUrl(t)}
+      <a class="dl-btn" href={simbadUrl(t)} target="_blank" rel="noopener" title="Its data and references in SIMBAD, at CDS Strasbourg">SIMBAD ↗</a>
+      <a class="dl-btn" href={simbadUrl(t, true)} target="_blank" rel="noopener" title="The same at SIMBAD's mirror at Harvard, for when Strasbourg is not answering">SIMBAD mirror ↗</a>
+    {/if}
   </div>
 
   <dl>

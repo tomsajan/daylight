@@ -23,12 +23,15 @@ export function wikipediaUrl(t: Target): string {
   return `https://en.wikipedia.org/wiki/Special:Search?go=Go&search=${encodeURIComponent(wikipediaTerm(t))}`;
 }
 
-/** SIMBAD's page for a deep-sky object, with its measurements and references. */
-export function simbadUrl(t: Target): string | null {
+/**
+ * SIMBAD's page for a deep-sky object, with its measurements and references: at CDS in Strasbourg,
+ * or at its mirror at Harvard, for when Strasbourg is not answering.
+ */
+export function simbadUrl(t: Target, mirror = false): string | null {
   if (!t.dso) return null;
   const m = /^M(\d+)$/.exec(t.dso.id);
   const ident = m ? `M ${m[1]}` : t.dso.desig.replace(/^ESO0*(\d+)-/, 'ESO $1-');
-  return `https://simbad.cds.unistra.fr/simbad/sim-id?Ident=${encodeURIComponent(ident)}`;
+  return `https://${mirror ? 'simbad.harvard.edu' : 'simbad.cds.unistra.fr'}/simbad/sim-id?Ident=${encodeURIComponent(ident)}`;
 }
 
 export interface Summary {

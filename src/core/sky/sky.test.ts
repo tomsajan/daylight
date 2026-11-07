@@ -251,6 +251,7 @@ describe('links', () => {
     expect(simbadUrl(dso('M31'))).toContain('Ident=M%2031');
     expect(simbadUrl(dso('ESO56-115'))).toContain('Ident=ESO%2056-115');
     expect(simbadUrl(dso('Jupiter'))).toBeNull();
+    expect(simbadUrl(dso('M31'), true)).toBe('https://simbad.harvard.edu/simbad/sim-id?Ident=M%2031');
   });
 });
 
