@@ -40,36 +40,39 @@
       </ul>
     </section>
 
-    {#if eclipses}
-      <section class="app">
-        <a class="main" href="designs/{eclipses.slug}/{search}">
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <!-- The Sun's crescent with the Moon over it. -->
-            <path d="M28.1 27.6A12 12 0 1 1 13.9 11.4A12 12 0 0 0 28.1 27.6Z" fill="currentColor" />
-            <circle cx="25" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" />
-          </svg>
-          <strong>{eclipses.name}</strong>
-          <span>{eclipses.description}</span>
-        </a>
-      </section>
-    {/if}
+    <!-- The two shorter apps share a column, to stand as tall as Daylight beside them. -->
+    <div class="stack">
+      {#if eclipses}
+        <section class="app">
+          <a class="main" href="designs/{eclipses.slug}/{search}">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <!-- The Sun's crescent with the Moon over it. -->
+              <path d="M28.1 27.6A12 12 0 1 1 13.9 11.4A12 12 0 0 0 28.1 27.6Z" fill="currentColor" />
+              <circle cx="25" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" />
+            </svg>
+            <strong>{eclipses.name}</strong>
+            <span>{eclipses.description}</span>
+          </a>
+        </section>
+      {/if}
 
-    {#if sky}
-      <section class="app">
-        <a class="main" href="designs/{sky.slug}/{search}">
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <!-- Stars of a constellation, joined, and a bright one. -->
-            <path d="M6 30 15 19l9 4 8-15" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" />
-            <circle cx="6" cy="30" r="3" fill="currentColor" />
-            <circle cx="15" cy="19" r="3.6" fill="currentColor" />
-            <circle cx="24" cy="23" r="2.7" fill="currentColor" />
-            <path d="m32 2 1.4 3.6L37 7l-3.6 1.4L32 12l-1.4-3.6L27 7l3.6-1.4z" fill="currentColor" />
-          </svg>
-          <strong>{sky.name}</strong>
-          <span>{sky.description}</span>
-        </a>
-      </section>
-    {/if}
+      {#if sky}
+        <section class="app">
+          <a class="main" href="designs/{sky.slug}/{search}">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <!-- Stars of a constellation, joined, and a bright one. -->
+              <path d="M6 30 15 19l9 4 8-15" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" />
+              <circle cx="6" cy="30" r="3" fill="currentColor" />
+              <circle cx="15" cy="19" r="3.6" fill="currentColor" />
+              <circle cx="24" cy="23" r="2.7" fill="currentColor" />
+              <path d="m32 2 1.4 3.6L37 7l-3.6 1.4L32 12l-1.4-3.6L27 7l3.6-1.4z" fill="currentColor" />
+            </svg>
+            <strong>{sky.name}</strong>
+            <span>{sky.description}</span>
+          </a>
+        </section>
+      {/if}
+    </div>
   </div>
 
   {#if dev.length}
@@ -111,6 +114,10 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
     gap: 16px;
     align-items: start;
+  }
+  .stack {
+    display: grid;
+    gap: 16px;
   }
   .app {
     display: flex;
