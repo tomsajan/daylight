@@ -287,17 +287,32 @@ function seen(f: Frame, v: Vec3): Vec3 {
   return [(h[0] / c) * Math.cos(a), (h[1] / c) * Math.cos(a), Math.sin(a)];
 }
 
-function drawGround(ctx: CanvasRenderingContext2D, p: Projector, w: number, h: number, sunAlt: number) {
-  const ring: Vec3[] = [];
-  for (let a = 0; a <= 360; a += 2) ring.push(horizontalVector(a, 0));
-  ctx.beginPath();
-  polyline(ctx, p, ring, true);
-  if (p.view.alt > 0) ctx.rect(0, 0, w, h);
-  const lit = Math.max(0, Math.min(1, (sunAlt + 12) / 18));
-  ctx.fillStyle = `rgb(${10 + 26 * lit} ${13 + 30 * lit} ${11 + 22 * lit} / 0.93)`;
-  ctx.fill('evenodd');
-  ctx.beginPath();
-  polyline(ctx, p, ring, true);
+/**
+ * The ground below the horizon, and the horizon's line. The horizon is drawn as the exact circle
+ * it projects to: a broken-up line of points would close the fill across the sky when zoomed in.
+ * With `fill` off only the line is drawn, and what is below the horizon shows.
+ */
+function drawGround(ctx: CanvasRenderingContext2D, p: Projector, w: number, h: number, sunAlt: number, fill: boolean) {
+  const hz = p.horizon();
+  const outline = () => {
+    ctx.beginPath();
+    if (hz.kind === 'line') {
+      ctx.moveTo(-10, hz.y);
+      ctx.lineTo(w + 10, hz.y);
+    } else ctx.arc(hz.x, hz.y, hz.r, 0, 2 * Math.PI);
+  };
+  if (fill) {
+    outline();
+    if (hz.kind === 'line') {
+      ctx.lineTo(w + 10, Math.max(h, hz.y) + 10);
+      ctx.lineTo(-10, Math.max(h, hz.y) + 10);
+      ctx.closePath();
+    } else if (!hz.groundInside) ctx.rect(0, 0, w, h);
+    const lit = Math.max(0, Math.min(1, (sunAlt + 12) / 18));
+    ctx.fillStyle = `rgb(${10 + 26 * lit} ${13 + 30 * lit} ${11 + 22 * lit} / 0.93)`;
+    ctx.fill('evenodd');
+  }
+  outline();
   ctx.strokeStyle = 'rgb(150 170 150 / 0.55)';
   ctx.lineWidth = 1;
   ctx.stroke();
@@ -634,7 +649,7 @@ export function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number, sce
   if (scene.layers.milkyWay) drawCore(ctx, p, f, picks, scene.layers.names);
   if (scene.layers.deepSky) drawDeepSky(ctx, p, f, picks, scene.selected?.id ?? null);
   drawSolarSystem(ctx, p, scene, light, picks);
-  drawGround(ctx, p, w, h, sunAlt);
+  drawGround(ctx, p, w, h, sunAlt, true);
   drawCompass(ctx, p);
   // The frame only once the target is up; below the horizon it would lie on the ground.
   if (scene.camera && scene.layers.frame && horiz(f, scene.camera.centre)[2] > -0.03) drawCameraFrame(ctx, p, f, scene.camera);

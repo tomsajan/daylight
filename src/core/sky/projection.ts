@@ -79,6 +79,20 @@ export class Projector {
     ];
   }
 
+  /**
+   * The horizon on the screen. Stereographic projection maps it to an exact circle, centred
+   * straight above or below the middle of the chart (up is the zenith). Below the horizon lies
+   * outside the circle when looking up and inside it when looking down. When the circle is too
+   * big to draw, the horizon is a straight line at `y` with the ground below it.
+   */
+  horizon(): { kind: 'circle'; x: number; y: number; r: number; groundInside: boolean } | { kind: 'line'; y: number } {
+    const a = this.view.alt * RAD;
+    const sin = Math.sin(a);
+    const r = (2 * this.k) / Math.abs(sin || 1e-12);
+    if (r > 1e6 || !Number.isFinite(r)) return { kind: 'line', y: this.cy + 2 * this.k * Math.tan(a / 2) };
+    return { kind: 'circle', x: this.cx, y: this.cy - (2 * this.k * Math.cos(a)) / sin, r, groundInside: sin < 0 };
+  }
+
   /** Pixels per degree in the middle of the chart. */
   get pxPerDegree(): number {
     return this.k * RAD;

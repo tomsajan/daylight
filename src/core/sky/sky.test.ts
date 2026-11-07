@@ -170,6 +170,28 @@ describe('sky chart projection', () => {
     expect(s.project(horizontalVector(180, 30))![1]).toBeLessThan(300);
   });
 
+  it('puts the horizon on an exact circle, at any zoom', () => {
+    for (const view of [
+      { az: 200, alt: 30, fov: 60 },
+      { az: 10, alt: -12, fov: 40 },
+      { az: 100, alt: 2, fov: 3 },
+      { az: 0, alt: 90, fov: 186 },
+    ]) {
+      const p = new Projector(view, 900, 600);
+      const hz = p.horizon();
+      for (const az of [view.az - 1, view.az, view.az + 1, view.az + 120]) {
+        const q = p.project(horizontalVector(az, 0), -1);
+        if (!q) continue;
+        if (hz.kind === 'line') expect(q[1]).toBeCloseTo(hz.y, 0);
+        else expect(Math.hypot(q[0] - hz.x, q[1] - hz.y) / hz.r).toBeCloseTo(1, 6);
+      }
+      // Is the ground where the circle says it is?
+      const below = p.project(horizontalVector(view.az, -5), -1);
+      if (below && hz.kind === 'circle') expect(Math.hypot(below[0] - hz.x, below[1] - hz.y) < hz.r).toBe(hz.groundInside);
+    }
+    expect(new Projector({ az: 0, alt: 0.05, fov: 0.5 }, 900, 600).horizon().kind).toBe('line');
+  });
+
   it('frames a rectangle of the right size around a target', () => {
     const t = unitVector(10.68, 41.27);
     const [outline] = frameOutline(t, 10, 6, 0);
