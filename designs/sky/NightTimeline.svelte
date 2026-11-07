@@ -34,11 +34,22 @@
   const HOUR = 3_600_000;
 
   /** From an hour before sunset to an hour after sunrise, or the whole span when the Sun never sets or rises. */
-  const span = $derived.by(() => {
+  const nightSpan = $derived.by(() => {
     const a = night.sunset ? Math.max(night.start, night.sunset - HOUR) : night.start;
     const b = night.sunrise ? Math.min(night.end, night.sunrise + HOUR) : night.end;
     return b > a ? [a, b] : [night.start, night.end];
   });
+  /** The whole day from noon to noon, to time things by day too. */
+  let wholeDay = $state(false);
+  const span = $derived(wholeDay ? [night.start, night.end] : nightSpan);
+  // A time in the day (Now at noon, say) opens the whole day, so it can be seen and moved.
+  $effect(() => {
+    if (time < nightSpan[0] || time > nightSpan[1]) wholeDay = true;
+  });
+  function toggleDay() {
+    wholeDay = !wholeDay;
+    if (!wholeDay && (time < nightSpan[0] || time > nightSpan[1])) onpick(Math.max(nightSpan[0], Math.min(nightSpan[1], time)));
+  }
 
   const x = (ms: number) => PAD.left + ((ms - span[0]) / (span[1] - span[0])) * (width - PAD.left - PAD.right);
   const y = (alt: number) => PAD.top + ((ALT_MAX - Math.max(ALT_MIN, Math.min(ALT_MAX, alt))) / (ALT_MAX - ALT_MIN)) * (height - PAD.top - PAD.bottom);
@@ -120,6 +131,16 @@
       ctx.fillRect(x(d.start), top - 7, x(d.end) - x(d.start), 4);
     }
 
+    // The Sun, over the whole day.
+    if (wholeDay) {
+      ctx.strokeStyle = 'rgb(255 150 70 / 0.8)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([6, 3]);
+      curve(ctx, night.sunAlt);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // The Moon.
     ctx.strokeStyle = `rgb(235 235 225 / ${0.35 + 0.5 * night.moon.fraction})`;
     ctx.lineWidth = 1.2;
@@ -154,7 +175,8 @@
     ctx.strokeStyle = 'rgb(200 208 228 / 0.12)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    const stepH = width < 420 ? 3 : width < 700 ? 2 : 1;
+    const hours = (span[1] - span[0]) / HOUR;
+    const stepH = Math.max(1, Math.ceil(hours / Math.max(1, (width - PAD.left - PAD.right) / 38)));
     let k = 0;
     // Ticks on whole hours of the place's clock, whose offset may be a half hour.
     const offset = toWall(span[0], scale) - span[0];
@@ -202,12 +224,13 @@
     item('#62d394', 'Dark, no Moon');
     item('rgb(150 160 190 / 0.8)', 'Dark, Moon up');
     item('rgb(235 235 225 / 0.8)', 'Moon', true);
+    if (wholeDay) item('rgb(255 150 70 / 0.9)', 'Sun', true);
     if (target) item('#ffd25e', targetName);
   }
 
   let queued = 0;
   $effect(() => {
-    void [night, time, target, windows, minAlt, width, hourCycle, scale, targetName];
+    void [night, time, target, windows, minAlt, width, hourCycle, scale, targetName, span, wholeDay];
     if (!queued)
       queued = requestAnimationFrame(() => {
         queued = 0;
@@ -270,6 +293,13 @@
     aria-valuetext={formatClock(time, scale, hourCycle)}
     tabindex="0"
   ></canvas>
+  <button
+    class="span"
+    class:on={wholeDay}
+    onclick={toggleDay}
+    aria-pressed={wholeDay}
+    title={wholeDay ? 'Showing noon to noon: click for the night only' : 'Show the whole day, noon to noon, to set a time by day'}>24 h</button
+  >
   {#if hover}
     <div class="hover" style:left="{Math.max(4, Math.min(hover.x - 70, width - 200))}px">{hover.text}</div>
   {/if}
@@ -290,6 +320,24 @@
     color: #e6e9f2;
     font-size: 12px;
     white-space: nowrap;
+  }
+  .span {
+    position: absolute;
+    top: 0;
+    right: 8px;
+    padding: 0 6px;
+    height: 15px;
+    border: 1px solid rgb(200 208 228 / 0.3);
+    border-radius: 4px;
+    background: rgb(8 12 26 / 0.6);
+    color: rgb(200 208 228 / 0.85);
+    font: 10.5px system-ui, sans-serif;
+    line-height: 13px;
+    cursor: pointer;
+  }
+  .span.on {
+    border-color: #ff8f8f;
+    color: #ffb3b3;
   }
   canvas {
     display: block;

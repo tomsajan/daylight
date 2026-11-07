@@ -115,7 +115,8 @@ Both:
   sky around the target, turned as you like, with how much of it the target fills, a focal length that frames it
   snugly, and how long an exposure can be without tracking by the 500 rule and the NPF rule.
 - **The night timeline:** darkness through the night, the Moon's altitude and the target's, with the hours worth
-  shooting picked out; click or drag to move through the night.
+  shooting picked out; click or drag to move through the night. "24 h" widens it to the whole day from noon to
+  noon, with the Sun's altitude, to set a time by day too; it opens by itself when the time is in daylight.
 - **Dark sites map:** the lights of the Earth at night as a satellite sees them (NASA's VIIRS Night Lights), over a
   background map, to find a spot far from towns; click to move the place there. A link opens
   [lightpollutionmap.info](https://www.lightpollutionmap.info) at the place, for the sky's measured brightness.
