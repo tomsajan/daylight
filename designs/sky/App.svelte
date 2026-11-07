@@ -384,6 +384,15 @@
           </select>
           <label>Lights <input type="range" min="0" max="1" step="0.05" bind:value={prefs.lightsOpacity} aria-label="Night lights opacity" /></label>
         </div>
+        {#if place}
+          <a
+            class="dl-btn external"
+            href="https://www.lightpollutionmap.info/#zoom=10.00&lat={place.lat.toFixed(4)}&lon={place.lon.toFixed(4)}"
+            target="_blank"
+            rel="noopener"
+            title="The sky's brightness and the Bortle class at the place, from more sources, on lightpollutionmap.info">Light pollution map ↗</a
+          >
+        {/if}
       {/if}
     </div>
     <div class="stage">
@@ -650,6 +659,13 @@
   .zoom .dl-btn {
     height: 32px;
     min-width: 32px;
+  }
+  .external {
+    height: 32px;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
   }
   .zoom .dl-btn--icon {
     width: 32px;
