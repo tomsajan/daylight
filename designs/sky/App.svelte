@@ -606,6 +606,8 @@
     position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
+    /* A column that can shrink: an implicit one keeps the canvases' last width and overflows. */
+    grid-template-columns: minmax(0, 1fr);
     min-height: 0;
     min-width: 0;
     background: #03050c;
