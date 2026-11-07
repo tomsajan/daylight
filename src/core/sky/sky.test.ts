@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as A from 'astronomy-engine';
 import { DSOS, STARS, STAR_NAMES, CONSTELLATIONS, MILKY_WAY, unitVector } from './catalog';
 import { simbadUrl, wikipediaTerm } from './links';
-import { Projector, ellipseOutline, frameOutline, horizontalVector } from './projection';
+import { Projector, ellipseOutline, frameOutline, horizontalVector, insideFrame, rotateBy } from './projection';
 import { altAzOf, skyFrame } from './frame';
 import { moonPhaseName, nightOf, totalMs } from './night';
 import { findTarget, monthSpan, visibility, yearNights, yearVisibility } from './targets';
@@ -251,5 +251,31 @@ describe('links', () => {
     expect(simbadUrl(dso('M31'))).toContain('Ident=M%2031');
     expect(simbadUrl(dso('ESO56-115'))).toContain('Ident=ESO%2056-115');
     expect(simbadUrl(dso('Jupiter'))).toBeNull();
+  });
+});
+
+describe('moving the frame', () => {
+  it('knows what falls inside the frame', () => {
+    const t = unitVector(83.82, -5.39);
+    expect(insideFrame(t, 10, 6, 0, t)).toBe(true);
+    // 4° east is inside a 10° wide frame at angle 0, 4° north is outside one 6° high; turned 90°, the other way round.
+    const east = unitVector(83.82 + 4 / Math.cos((5.39 * Math.PI) / 180), -5.39);
+    const north = unitVector(83.82, -1.39);
+    expect(insideFrame(t, 10, 6, 0, east)).toBe(true);
+    expect(insideFrame(t, 10, 6, 0, north)).toBe(false);
+    expect(insideFrame(t, 10, 6, 90, east)).toBe(false);
+    expect(insideFrame(t, 10, 6, 90, north)).toBe(true);
+    expect(insideFrame(t, 10, 6, 0, unitVector(263.82, 5.39))).toBe(false);
+  });
+
+  it('turns a direction the way one point moves to another', () => {
+    const a = unitVector(10, 20);
+    const b = unitVector(12, 21);
+    const r = rotateBy(a, b, a);
+    for (let i = 0; i < 3; i++) expect(r[i]).toBeCloseTo(b[i], 9);
+    // Angles between directions are kept.
+    const v = unitVector(11, 25);
+    const rv = rotateBy(a, b, v);
+    expect(rv[0] * r[0] + rv[1] * r[1] + rv[2] * r[2]).toBeCloseTo(v[0] * a[0] + v[1] * a[1] + v[2] * a[2], 9);
   });
 });

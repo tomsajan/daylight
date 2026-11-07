@@ -1,12 +1,12 @@
 <!--
   The sky from the place at the chosen time, as if lying on the ground looking up: drag to look
   around, scroll or pinch to zoom, click a target to choose it. The selected target is ringed,
-  with the camera's frame around it.
+  with the camera's frame around it; drag the frame to move it off the target.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { skyFrame, toHorizontal, type Site, type Vec3 } from '$core/sky/frame';
-  import { toAzAlt, type View } from '$core/sky/projection';
+  import { insideFrame, rotateBy, toAzAlt, type View } from '$core/sky/projection';
   import { compassPoint } from '$core/time/format';
   import { drawSky, Projector, type FrameSpec, type Pickable, type SkyLayers } from './draw';
 
@@ -18,8 +18,10 @@
     selected: { id: string; v: Vec3; label: string } | null;
     camera: FrameSpec | null;
     onpick?: (id: string) => void;
+    /** The frame dragged to a new J2000 centre. */
+    onframemove?: (centre: Vec3) => void;
   }
-  let { site, time, layers, view = $bindable(), selected, camera, onpick }: Props = $props();
+  let { site, time, layers, view = $bindable(), selected, camera, onpick, onframemove }: Props = $props();
 
   let wrap: HTMLDivElement;
   let canvas: HTMLCanvasElement;
@@ -82,9 +84,24 @@
   const pointers = new Map<number, { x: number; y: number }>();
   let moved = 0;
   let pinch = 0;
+  /** Dragging the frame: its centre and the J2000 direction last under the pointer. */
+  let frameDrag: { centre: Vec3; last: Vec3 } | null = null;
+  let overFrame = $state(false);
+
+  /** The J2000 direction under a point of the chart. */
+  function skyAt(x: number, y: number): Vec3 {
+    const f = skyFrame(time, site);
+    const h = new Projector(view, width, height).unproject(x, y);
+    return [f[0] * h[0] + f[3] * h[1] + f[6] * h[2], f[1] * h[0] + f[4] * h[1] + f[7] * h[2], f[2] * h[0] + f[5] * h[1] + f[8] * h[2]];
+  }
+  const onFrame = (v: Vec3) => !!(camera && layers.frame && onframemove && insideFrame(camera.centre, camera.width, camera.height, camera.rotation, v));
 
   function down(e: PointerEvent) {
     canvas.setPointerCapture(e.pointerId);
+    if (pointers.size === 0 && camera) {
+      const v = skyAt(e.offsetX, e.offsetY);
+      frameDrag = onFrame(v) ? { centre: camera.centre, last: v } : null;
+    } else frameDrag = null;
     pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     moved = 0;
     if (pointers.size === 2) {
@@ -100,6 +117,14 @@
     const dy = e.offsetY - last.y;
     pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     moved += Math.abs(dx) + Math.abs(dy);
+    if (frameDrag && pointers.size === 1) {
+      const v = skyAt(e.offsetX, e.offsetY);
+      frameDrag.centre = rotateBy(frameDrag.last, v, frameDrag.centre);
+      frameDrag.last = v;
+      onframemove?.(frameDrag.centre);
+      hover = null;
+      return;
+    }
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -117,6 +142,7 @@
 
   function up(e: PointerEvent) {
     pointers.delete(e.pointerId);
+    frameDrag = null;
     pinch = 0;
     if (moved < 6 && pointers.size === 0) pick(e.offsetX, e.offsetY);
   }
@@ -140,6 +166,7 @@
   }
 
   function showHover(x: number, y: number) {
+    overFrame = onFrame(skyAt(x, y));
     const p = nearest(x, y);
     const proj = new Projector(view, width, height);
     const { az, alt } = toAzAlt(proj.unproject(x, y));
@@ -172,6 +199,7 @@
 <div class="sky" bind:this={wrap}>
   <canvas
     bind:this={canvas}
+    class:move={overFrame}
     style:width="{width}px"
     style:height="{height}px"
     onpointerdown={down}
@@ -181,7 +209,7 @@
     onpointerleave={() => (hover = null)}
     onwheel={wheel}
     ondblclick={wholeSky}
-    aria-label="Sky chart: drag to look around, scroll to zoom, click a target to choose it, double-click for the whole sky"
+    aria-label="Sky chart: drag to look around, drag the frame to move it, scroll to zoom, click a target to choose it, double-click for the whole sky"
   ></canvas>
   {#if hover}
     <div class="hover" style:left="{Math.min(hover.x + 14, width - 220)}px" style:top="{hover.y + 16}px">{hover.text}</div>
@@ -203,6 +231,9 @@
   }
   canvas:active {
     cursor: grabbing;
+  }
+  canvas.move {
+    cursor: move;
   }
   .hover {
     position: absolute;

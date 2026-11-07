@@ -111,9 +111,10 @@ Both:
   zoomed in, the planets and the Moon in its phase, twilight and moonlight brightening the sky. Drag to look
   around, scroll or pinch to zoom. The ground and the atmosphere can be switched off, to see what is below the
   horizon or a dark sky by day.
-- **The camera:** pick a sensor (or enter your own) and, if known, its megapixels, the focal length and the aperture; the frame is drawn on the
-  sky around the target, turned as you like, with how much of it the target fills, a focal length that frames it
-  snugly, and how long an exposure can be without tracking by the 500 rule and the NPF rule.
+- **The camera:** pick a sensor (or enter your own) and, if known, its megapixels, the focal length and the
+  aperture; the frame is drawn on the sky around the target, turned as you like, and can be dragged off it to frame
+  several things at once; with how much of it the target fills, a focal length that frames it snugly, and how long
+  an exposure can be without tracking by the 500 rule and the NPF rule.
 - **The night timeline:** darkness through the night, the Moon's altitude and the target's, with the hours worth
   shooting picked out; click or drag to move through the night. "24 h" widens it to the whole day from noon to
   noon, with the Sun's altitude, to set a time by day too; it opens by itself when the time is in daylight.

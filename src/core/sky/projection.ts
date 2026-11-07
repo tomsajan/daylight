@@ -111,6 +111,19 @@ export function toAzAlt(h: Vec3): { az: number; alt: number } {
  * give it: at 0 the top points north and the long side runs east-west; at 90 the top points east.
  */
 export function frameOutline(target: Vec3, width: number, height: number, angle: number, perSide = 24): Vec3[][] {
+  const { t, ax, ay, hx, hy } = frameAxes(target, width, height, angle);
+  const at = (u: number, v: number): Vec3 => norm([t[0] + ax[0] * u * hx + ay[0] * v * hy, t[1] + ax[1] * u * hx + ay[1] * v * hy, t[2] + ax[2] * u * hx + ay[2] * v * hy]);
+  const side = (u0: number, v0: number, u1: number, v1: number) =>
+    Array.from({ length: perSide + 1 }, (_, i) => at(u0 + ((u1 - u0) * i) / perSide, v0 + ((v1 - v0) * i) / perSide));
+  // One closed line, and a short tick on the top edge's middle to tell which way is up in the picture.
+  return [
+    [...side(-1, -1, 1, -1), ...side(1, -1, 1, 1).slice(1), ...side(1, 1, -1, 1).slice(1), ...side(-1, 1, -1, -1).slice(1)],
+    [at(0, 1), at(0, 1.12)],
+  ];
+}
+
+/** The frame's middle, its axes across and up on the sky (J2000), and its half sides on the tangent plane. */
+function frameAxes(target: Vec3, width: number, height: number, angle: number) {
   const t = norm(target);
   // East and north at the target, in J2000.
   let east: Vec3 = cross([0, 0, 1], t);
@@ -122,16 +135,27 @@ export function frameOutline(target: Vec3, width: number, height: number, angle:
   // Up turns from north towards east; across turns with it, from east towards south.
   const ay: Vec3 = [north[0] * c + east[0] * s, north[1] * c + east[1] * s, north[2] * c + east[2] * s];
   const ax: Vec3 = [east[0] * c - north[0] * s, east[1] * c - north[1] * s, east[2] * c - north[2] * s];
-  const hx = Math.tan((width * RAD) / 2);
-  const hy = Math.tan((height * RAD) / 2);
-  const at = (u: number, v: number): Vec3 => norm([t[0] + ax[0] * u * hx + ay[0] * v * hy, t[1] + ax[1] * u * hx + ay[1] * v * hy, t[2] + ax[2] * u * hx + ay[2] * v * hy]);
-  const side = (u0: number, v0: number, u1: number, v1: number) =>
-    Array.from({ length: perSide + 1 }, (_, i) => at(u0 + ((u1 - u0) * i) / perSide, v0 + ((v1 - v0) * i) / perSide));
-  // One closed line, and a short tick on the top edge's middle to tell which way is up in the picture.
-  return [
-    [...side(-1, -1, 1, -1), ...side(1, -1, 1, 1).slice(1), ...side(1, 1, -1, 1).slice(1), ...side(-1, 1, -1, -1).slice(1)],
-    [at(0, 1), at(0, 1.12)],
-  ];
+  return { t, ax, ay, hx: Math.tan((width * RAD) / 2), hy: Math.tan((height * RAD) / 2) };
+}
+
+/** Whether a J2000 direction falls inside a camera frame (as frameOutline draws it). */
+export function insideFrame(target: Vec3, width: number, height: number, angle: number, v: Vec3): boolean {
+  const { t, ax, ay, hx, hy } = frameAxes(target, width, height, angle);
+  const d = dot(v, t);
+  if (d <= 0) return false;
+  return Math.abs(dot(v, ax) / d) <= hx && Math.abs(dot(v, ay) / d) <= hy;
+}
+
+/** `v` turned by the rotation that takes the direction `a` to `b` along the great circle between them. */
+export function rotateBy(a: Vec3, b: Vec3, v: Vec3): Vec3 {
+  const k = cross(a, b);
+  const s = Math.hypot(...k);
+  if (s < 1e-12) return v;
+  const n: Vec3 = [k[0] / s, k[1] / s, k[2] / s];
+  const c = dot(a, b);
+  const nv = cross(n, v);
+  const along = dot(n, v) * (1 - c);
+  return norm([v[0] * c + nv[0] * s + n[0] * along, v[1] * c + nv[1] * s + n[1] * along, v[2] * c + nv[2] * s + n[2] * along]);
 }
 
 /** The ellipse of an object's size on the sky, as J2000 unit vectors: axes in arcminutes, angle east of north. */

@@ -17,6 +17,7 @@
   import { nightOf, nextMoons, totalMs, type Night } from '$core/sky/night';
   import { TARGETS, findTarget, targetNow, targetVector, visibility, yearNights, yearVisibility, type Target, type YearNights } from '$core/sky/targets';
   import { field } from '$core/sky/camera';
+  import type { Vec3 } from '$core/sky/frame';
   import { CONSTELLATION_CREDIT, DSO_CREDIT, MILKY_WAY_CREDIT, STAR_CREDIT } from '$core/sky/catalog';
   import type { View } from '$core/sky/projection';
   import { sunAltitude } from '$core/astro/sun';
@@ -171,10 +172,16 @@
   let chart: SkyChart | undefined = $state();
   let lightMap: LightMap | undefined = $state();
   const fieldNow = $derived(field(prefs.camera));
+  /** The frame moved off the target by dragging it, a J2000 direction; null while it is centred on the target. */
+  let frameCentre = $state<Vec3 | null>(null);
+  $effect(() => {
+    void selectedId;
+    frameCentre = null;
+  });
   const cameraFrame = $derived(
     targetV
       ? {
-          centre: targetV,
+          centre: frameCentre ?? targetV,
           width: fieldNow.width,
           height: fieldNow.height,
           rotation: prefs.camera.rotation,
@@ -373,6 +380,7 @@
         </div>
         <div class="zoom">
           <button class="dl-btn" onclick={() => chart?.wholeSky()} title="The whole sky, the zenith in the middle">Whole sky</button>
+          {#if frameCentre}<button class="dl-btn" onclick={() => (frameCentre = null)} title="Put the frame back on the target">Centre frame</button>{/if}
           {#if targetV}<button class="dl-btn" onclick={look} title="Turn to the selected target">Target</button>{/if}
           <button class="dl-btn dl-btn--icon" onclick={() => chart?.zoom(1 / 1.5)} aria-label="Zoom in">+</button>
           <button class="dl-btn dl-btn--icon" onclick={() => chart?.zoom(1.5)} aria-label="Zoom out">−</button>
@@ -406,6 +414,7 @@
           selected={target && targetV ? { id: target.id, v: targetV, label: target.title } : null}
           camera={cameraFrame}
           onpick={select}
+          onframemove={(c) => (frameCentre = c)}
         />
         <p class="when">{formatDate(civilDateOf(app.time, scale), 'medium')} {clock(app.time)}{app.live ? ' · now' : ''}</p>
       </div>
