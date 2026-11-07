@@ -3,11 +3,13 @@
   the camera's frame and how long an exposure can be without tracking.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { Interval, Night } from '$core/sky/night';
   import { monthSpan, type Target, type Visibility, type YearVisibility } from '$core/sky/targets';
   import { field, focalToFrame, rule500, ruleNpf, sensorOf, type CameraSettings } from '$core/sky/camera';
   import { formatClock, formatDuration, type HourCycle } from '$core/time/format';
   import type { CivilDate, TimeScale } from '$core/time/timescale';
+  import { simbadUrl, wikipediaSummary, wikipediaUrl, type Summary } from '$core/sky/links';
   import YearStrip from './YearStrip.svelte';
 
   interface Props {
@@ -46,6 +48,23 @@
   const pixels = $derived(t.size[0] ? (t.size[0] * 60) / f.pixelScale : null);
   const neverSets = $derived(vis.rises.length === 0 && vis.sets.length === 0 && vis.culmination.alt > 0);
   const neverRises = $derived(vis.culmination.alt < 0);
+
+  // What it looks like: Wikipedia's picture and first lines, fetched when the target is opened.
+  let summary = $state<Summary | null>(null);
+  let summaryFor = $state('');
+  $effect(() => {
+    const id = t.id;
+    summary = null;
+    summaryFor = '';
+    // On the id only: the Moon's and the planets' targets are made anew as time moves.
+    untrack(() => wikipediaSummary(t)).then((s) => {
+      if (untrack(() => t.id) !== id) return;
+      summary = s;
+      summaryFor = id;
+    });
+  });
+  /** The first sentence or two, enough for an idea. */
+  const lead = $derived(summary ? (summary.extract.match(/^(.{0,320}?[.!?])(\s|$)/s)?.[1] ?? summary.extract.slice(0, 320)) : '');
 </script>
 
 <section class="details">
@@ -59,8 +78,21 @@
     <button class="dl-btn dl-btn--icon close" onclick={onclose} aria-label="Close" title="Close">×</button>
   </header>
 
+  {#if summary && summaryFor === t.id}
+    <figure class="about">
+      {#if summary.image}
+        <a href={summary.page} target="_blank" rel="noopener" title="{summary.title} on Wikipedia">
+          <img src={summary.image.url} alt={summary.title} width={summary.image.width} height={summary.image.height} loading="lazy" />
+        </a>
+      {/if}
+      <figcaption>{lead} <a href={summary.page} target="_blank" rel="noopener">Wikipedia</a></figcaption>
+    </figure>
+  {/if}
+
   <div class="actions">
     <button class="dl-btn" onclick={onlook}>Show in the sky</button>
+    <a class="dl-btn" href={wikipediaUrl(t)} target="_blank" rel="noopener" title="Read about it on Wikipedia">Wikipedia ↗</a>
+    {#if simbadUrl(t)}<a class="dl-btn" href={simbadUrl(t)} target="_blank" rel="noopener" title="Its data and references in SIMBAD">SIMBAD ↗</a>{/if}
   </div>
 
   <dl>
@@ -145,7 +177,36 @@
     font-size: 18px;
   }
   .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     margin: 8px 0 10px;
+  }
+  .actions a {
+    text-decoration: none;
+  }
+  .about {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    margin: 10px 0 0;
+  }
+  .about:not(:has(img)) {
+    grid-template-columns: 1fr;
+  }
+  .about img {
+    display: block;
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #05070d;
+  }
+  .about figcaption {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--muted);
   }
   h3 {
     margin: 14px 0 6px;

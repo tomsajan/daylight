@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as A from 'astronomy-engine';
 import { DSOS, STARS, STAR_NAMES, CONSTELLATIONS, MILKY_WAY, unitVector } from './catalog';
+import { simbadUrl, wikipediaTerm } from './links';
 import { Projector, ellipseOutline, frameOutline, horizontalVector } from './projection';
 import { altAzOf, skyFrame } from './frame';
 import { moonPhaseName, nightOf, totalMs } from './night';
@@ -236,5 +237,19 @@ describe('object outlines', () => {
     // Measured on the sphere's flat approximation, so within a degree.
     expect(Math.abs(pa - 35)).toBeLessThan(1);
     expect(Math.hypot((tipRa - ra) * Math.cos((dec * Math.PI) / 180), tipDec - dec)).toBeCloseTo(1.5, 2);
+  });
+});
+
+describe('links', () => {
+  const dso = (id: string) => findTarget(id)!;
+  it('names targets as Wikipedia and SIMBAD know them', () => {
+    expect(wikipediaTerm(dso('M31'))).toBe('Messier 31');
+    expect(wikipediaTerm(dso('NGC7000'))).toBe('NGC 7000');
+    expect(wikipediaTerm(dso('B33'))).toBe('Barnard 33');
+    expect(wikipediaTerm(dso('ESO56-115'))).toBe('Large Magellanic Cloud');
+    expect(wikipediaTerm(dso('Mercury'))).toBe('Mercury (planet)');
+    expect(simbadUrl(dso('M31'))).toContain('Ident=M%2031');
+    expect(simbadUrl(dso('ESO56-115'))).toContain('Ident=ESO%2056-115');
+    expect(simbadUrl(dso('Jupiter'))).toBeNull();
   });
 });

@@ -103,19 +103,22 @@ Both:
   the Double Cluster, the Horsehead, the Magellanic Clouds…), the planets, the Moon and the core of the Milky Way,
   ranked by how long each is above a chosen altitude (30° unless changed) in the dark with the Moon down. Search
   and filter by kind.
-- **A target:** when it is highest, when it rises and sets, its hours above the altitude tonight and how far the
+- **A target:** what it looks like (the lead picture and first lines of its Wikipedia article, with links to
+  Wikipedia and SIMBAD), when it is highest, when it rises and sets, its hours above the altitude tonight and how far the
   Moon is; through the year, night by night, its dark hours with and without the Moon, and its best months.
 - **The sky chart:** the sky from the place at the chosen time, as if lying on your back: stars to magnitude 6 in
   their colours, the constellations, the Milky Way, the deep-sky objects at their true size and orientation when
   zoomed in, the planets and the Moon in its phase, twilight and moonlight brightening the sky. Drag to look
-  around, scroll or pinch to zoom.
-- **The camera:** pick a sensor (or enter your own), the focal length and the aperture; the frame is drawn on the
+  around, scroll or pinch to zoom. The ground and the atmosphere can be switched off, to see what is below the
+  horizon or a dark sky by day.
+- **The camera:** pick a sensor (or enter your own) and, if known, its megapixels, the focal length and the aperture; the frame is drawn on the
   sky around the target, turned as you like, with how much of it the target fills, a focal length that frames it
   snugly, and how long an exposure can be without tracking by the 500 rule and the NPF rule.
 - **The night timeline:** darkness through the night, the Moon's altitude and the target's, with the hours worth
   shooting picked out; click or drag to move through the night.
 - **Dark sites map:** the lights of the Earth at night as a satellite sees them (NASA's VIIRS Night Lights), over a
-  background map, to find a spot far from towns; click to move the place there.
+  background map, to find a spot far from towns; click to move the place there. A link opens
+  [lightpollutionmap.info](https://www.lightpollutionmap.info) at the place, for the sky's measured brightness.
 - **Night vision:** everything in red, to keep your eyes used to the dark.
 
 The core of the Milky Way counts from 10° up rather than the chosen altitude: it is photographed low over the
@@ -132,7 +135,8 @@ looked up offline. The Eclipses page also loads map tiles: [OpenFreeMap](https:/
 data), the [Sentinel-2 cloudless](https://s2maps.eu) mosaic, or [Mapy.com](https://mapy.com); and for the skyline,
 elevation tiles from the [terrain tiles on AWS](https://registry.opendata.aws/terrain-tiles/), some 15 to 30 per
 place, unless the terrain is switched off. Night Sky's map of dark sites loads the same background maps and NASA's
-night lights tiles from [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api).
+night lights tiles from [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api);
+opening a target asks [Wikipedia's API](https://en.wikipedia.org/api/rest_v1/) for its article's summary and picture.
 
 Mapy.com needs an API key, free for modest use at [developer.mapy.com](https://developer.mapy.com). Either enter it
 on the page, where it stays in that browser, or build with `VITE_MAPY_API_KEY=...`. A key built into a public site
