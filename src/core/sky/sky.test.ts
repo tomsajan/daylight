@@ -5,7 +5,7 @@ import { Projector, ellipseOutline, frameOutline, horizontalVector } from './pro
 import { altAzOf, skyFrame } from './frame';
 import { moonPhaseName, nightOf, totalMs } from './night';
 import { findTarget, monthSpan, visibility, yearNights, yearVisibility } from './targets';
-import { field, fieldOfView, rule500, ruleNpf, DEFAULT_CAMERA } from './camera';
+import { field, fieldOfView, pitchFromMegapixels, rule500, ruleNpf, sensorOf, DEFAULT_CAMERA } from './camera';
 import { makeTimeScale } from '../time/timescale';
 
 const PRAGUE = { lat: 50.0755, lon: 14.4378, tz: 'Europe/Prague' };
@@ -129,6 +129,14 @@ describe('camera', () => {
     expect(f.width).toBeCloseTo(10.29, 2);
     expect(f.height).toBeCloseTo(6.87, 2);
     expect(f.pixelScale).toBeCloseTo(6.08, 2);
+  });
+
+  it('works out the pixel pitch from megapixels', () => {
+    // 24 MP on full frame: 6000 × 4000 pixels of 6 µm.
+    expect(pitchFromMegapixels(36, 24, 24)).toBeCloseTo(6, 6);
+    expect(sensorOf({ ...DEFAULT_CAMERA, megapixels: 24 }).pixel).toBeCloseTo(6, 6);
+    expect(sensorOf({ ...DEFAULT_CAMERA, sensor: 'apsc', megapixels: 24 }).pixel).toBeCloseTo(3.91, 2);
+    expect(sensorOf({ ...DEFAULT_CAMERA, megapixels: null }).pixel).toBe(5.9);
   });
 
   it('gives the 500 and NPF exposure limits', () => {

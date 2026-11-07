@@ -3,11 +3,12 @@
   Kept in this browser.
 -->
 <script lang="ts">
-  import { SENSORS, field, rule500, ruleNpf } from '$core/sky/camera';
+  import { SENSORS, field, rule500, ruleNpf, sensorOf } from '$core/sky/camera';
   import { prefs } from './prefs.svelte';
 
   const cam = prefs.camera;
   const f = $derived(field(prefs.camera));
+  const sensor = $derived(sensorOf(prefs.camera));
   const FOCALS = [14, 20, 24, 35, 50, 85, 135, 200, 300, 400, 600, 1000];
 </script>
 
@@ -24,8 +25,19 @@
     {#if cam.sensor === 'custom'}
       <label>Width, mm <input class="dl-input" type="number" min="1" max="100" step="0.1" bind:value={cam.custom.width} /></label>
       <label>Height, mm <input class="dl-input" type="number" min="1" max="100" step="0.1" bind:value={cam.custom.height} /></label>
-      <label>Pixel, µm <input class="dl-input" type="number" min="0.5" max="20" step="0.01" bind:value={cam.custom.pixel} /></label>
     {/if}
+    <label title="The sensor's resolution: the pixel size follows from it. Leave empty for a typical pixel size.">
+      Megapixels
+      <input class="dl-input" type="number" min="1" max="200" step="0.1" placeholder="typical" bind:value={cam.megapixels} />
+    </label>
+    <label>
+      Pixel, µm
+      {#if cam.sensor === 'custom' && !cam.megapixels}
+        <input class="dl-input" type="number" min="0.5" max="20" step="0.01" bind:value={cam.custom.pixel} />
+      {:else}
+        <input class="dl-input" type="text" readonly value={sensor.pixel.toFixed(2)} title={cam.megapixels ? 'From the megapixels' : 'Typical for the sensor; set megapixels for yours'} />
+      {/if}
+    </label>
     <label>
       Focal length, mm
       <input class="dl-input" type="number" min="4" max="5000" step="1" bind:value={cam.focal} list="focals" />
@@ -61,9 +73,13 @@
   .wide {
     grid-column: 1 / -1;
   }
-  input[type='number'] {
+  input[type='number'],
+  input[readonly] {
     width: 100%;
     box-sizing: border-box;
+  }
+  input[readonly] {
+    opacity: 0.7;
   }
   small {
     font-size: 11px;

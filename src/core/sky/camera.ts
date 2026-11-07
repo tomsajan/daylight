@@ -34,6 +34,8 @@ export interface CameraSettings {
   /** A SENSORS id, or 'custom'. */
   sensor: string;
   custom: { width: number; height: number; pixel: number };
+  /** The sensor's resolution in megapixels; when set, the pixel pitch follows from it and the size. */
+  megapixels: number | null;
   /** Focal length, mm. */
   focal: number;
   /** Aperture, f-number. */
@@ -45,13 +47,20 @@ export interface CameraSettings {
 export const DEFAULT_CAMERA: CameraSettings = {
   sensor: 'ff',
   custom: { width: 36, height: 24, pixel: 5.9 },
+  megapixels: null,
   focal: 50,
   fNumber: 2.8,
   rotation: 0,
 };
 
+/** The pixel pitch in micrometres of a sensor of `width` × `height` mm with `megapixels` square pixels. */
+export function pitchFromMegapixels(width: number, height: number, megapixels: number): number {
+  return Math.sqrt((width * height) / (megapixels * 1e6)) * 1000;
+}
+
 export function sensorOf(c: CameraSettings): Sensor {
-  return SENSORS.find((s) => s.id === c.sensor) ?? { id: 'custom', name: 'Custom', ...c.custom };
+  const s = SENSORS.find((s) => s.id === c.sensor) ?? { id: 'custom', name: 'Custom', ...c.custom };
+  return c.megapixels && c.megapixels > 0 ? { ...s, pixel: pitchFromMegapixels(s.width, s.height, c.megapixels) } : s;
 }
 
 /** The field of view across a side of the sensor, degrees: 2·atan(side / 2f). */
