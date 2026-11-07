@@ -73,7 +73,8 @@
   // --- Looking around ---------------------------------------------------------------------
 
   const clampView = (v: View): View => {
-    let alt = Math.max(-20, Math.min(90, v.alt));
+    // With the ground off, look as far down as wanted.
+    let alt = Math.max(layers.ground ? -20 : -90, Math.min(90, v.alt));
     if (Math.abs(alt) < 0.05) alt = 0.05;
     return { az: ((v.az % 360) + 360) % 360, alt, fov: Math.max(0.5, Math.min(200, v.fov)) };
   };

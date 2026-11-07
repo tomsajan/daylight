@@ -11,6 +11,11 @@ import { GALACTIC_CENTRE } from '$core/sky/targets';
 const DEG = 180 / Math.PI;
 const RAD = Math.PI / 180;
 
+/** The lowest altitude (as the sine) drawn: just under the horizon, or everything with the ground off. */
+let floor = -0.01;
+/** Dimmed when below the horizon, as seen through the ground. */
+const below = (h: Vec3) => floor > -1 && h[2] < 0;
+
 export interface SkyLayers {
   constellations: boolean;
   names: boolean;
@@ -18,6 +23,10 @@ export interface SkyLayers {
   deepSky: boolean;
   grid: boolean;
   frame: boolean;
+  /** The ground hides what is below the horizon. */
+  ground: boolean;
+  /** Daylight, twilight and moonlight brighten the sky; off, the sky is always dark. */
+  atmosphere: boolean;
 }
 
 export interface FrameSpec {
@@ -189,6 +198,7 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyS
   const img = ctx.createImageData(bw, bh);
   const out = img.data;
   const base = skyBase(light.sunAlt);
+  const air = scene.layers.atmosphere;
   const f = scene.frame;
   const mw = scene.layers.milkyWay ? milkyWayMap() : null;
   // The Milky Way shows in a dark sky only.
@@ -201,8 +211,8 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyS
     for (let i = 0; i < bw; i++) {
       const v = p.unproject((i + 0.5) * step, (j + 0.5) * step);
       const up = Math.max(0, v[2]);
-      // Lighter towards the horizon.
-      const haze = 1 + 0.7 * (1 - up) ** 3;
+      // Lighter towards the horizon, through more air.
+      const haze = air ? 1 + 0.7 * (1 - up) ** 3 : 1;
       let r = base[0] * haze + moonLift * 0.8;
       let g = base[1] * haze + moonLift * 0.9;
       let b = base[2] * haze + moonLift * 1.2;
@@ -221,7 +231,7 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyS
         g += g2;
         b += g2 * 1.1;
       }
-      if (mw && mwLight > 0 && v[2] > -0.05) {
+      if (mw && mwLight > 0 && (v[2] > -0.05 || !scene.layers.ground)) {
         // Back to J2000 (the frame's transpose), then right ascension and declination.
         const ex = f[0] * v[0] + f[3] * v[1] + f[6] * v[2];
         const ey = f[1] * v[0] + f[4] * v[1] + f[7] * v[2];
@@ -229,7 +239,7 @@ function drawBackground(ctx: CanvasRenderingContext2D, p: Projector, scene: SkyS
         const ra = Math.atan2(ey, ex);
         const x = Math.floor((((ra / (2 * Math.PI)) % 1) + 1) % 1 * MW_W) % MW_W;
         const y = Math.min(MW_H - 1, Math.floor(((Math.PI / 2 - Math.asin(Math.max(-1, Math.min(1, ez)))) / Math.PI) * MW_H));
-        const m = mw[y * MW_W + x] * mwLight * Math.min(1, up * 4);
+        const m = mw[y * MW_W + x] * mwLight * (air && scene.layers.ground ? Math.min(1, up * 4) : 1);
         r += m * 85;
         g += m * 90;
         b += m * 105;
@@ -361,7 +371,7 @@ function drawConstellations(ctx: CanvasRenderingContext2D, p: Projector, f: Fram
   ctx.fillStyle = 'rgb(150 180 235 / 0.55)';
   for (const c of CONSTELLATIONS) {
     const h = horiz(f, unitVector(c.label[0], c.label[1]));
-    if (h[2] < 0.02) continue;
+    if (h[2] < floor + 0.03) continue;
     const q = p.project(h, 0);
     if (q) ctx.fillText(c.name.toUpperCase(), q[0], q[1]);
   }
@@ -378,7 +388,7 @@ function drawStars(ctx: CanvasRenderingContext2D, p: Projector, f: Frame, limit:
     const mag = STARS[i][2];
     if (mag > limit) break;
     const h = seen(f, [STAR_VECTORS[i * 3], STAR_VECTORS[i * 3 + 1], STAR_VECTORS[i * 3 + 2]]);
-    if (h[2] < -0.01) continue;
+    if (h[2] < floor) continue;
     const q = p.project(h, 0);
     if (!q || q[0] < -5 || q[1] < -5 || q[0] > p.width + 5 || q[1] > p.height + 5) continue;
     const r = Math.max(0.55, (2.9 - 0.42 * mag) * zoom);
@@ -458,12 +468,12 @@ function drawDeepSky(ctx: CanvasRenderingContext2D, p: Projector, f: Frame, pick
     if (wide && d.id !== selected && !((d.mag ?? 99) < 8 || (d.size[0] ?? 0) > 40)) continue;
     const v = unitVector(d.ra, d.dec);
     const h = horiz(f, v);
-    if (h[2] < -0.01 && d.id !== selected) continue;
+    if (h[2] < floor && d.id !== selected) continue;
     const q = p.project(h, 0);
     if (!q || q[0] < -50 || q[1] < -50 || q[0] > p.width + 50 || q[1] > p.height + 50) continue;
     const color = DSO_COLORS[d.type];
     ctx.strokeStyle = color;
-    ctx.globalAlpha = h[2] < 0 ? 0.35 : 0.85;
+    ctx.globalAlpha = below(h) ? 0.35 : 0.85;
     const major = d.size[0] ?? 0;
     if ((major / 60) * pxDeg > 14) {
       ctx.beginPath();
@@ -510,12 +520,12 @@ function drawSolarSystem(ctx: CanvasRenderingContext2D, p: Projector, scene: Sky
   for (const planet of PLANETS) {
     const { v, dist } = bodyVector(planet, scene.ms, scene.site);
     const h = seen(f, v);
-    if (h[2] < -0.01 && planet !== scene.selected?.id) continue;
+    if (h[2] < floor && planet !== scene.selected?.id) continue;
     const q = p.project(h, 0);
     if (!q) continue;
     const mag = bodyLight(planet, scene.ms).mag;
     const r = Math.max(Math.max(1.6, 3.6 - 0.35 * mag), (angularDiameter(planet, dist) / 2) * pxDeg);
-    ctx.globalAlpha = h[2] < 0 ? 0.4 : 1;
+    ctx.globalAlpha = below(h) ? 0.4 : 1;
     ctx.beginPath();
     ctx.arc(q[0], q[1], r, 0, Math.PI * 2);
     ctx.fillStyle = PLANET_COLORS[planet];
@@ -529,7 +539,7 @@ function drawSolarSystem(ctx: CanvasRenderingContext2D, p: Projector, scene: Sky
   ctx.globalAlpha = 1;
   // The Sun, while up.
   const sh = horiz(f, light.sun);
-  if (sh[2] > -0.02) {
+  if (sh[2] > floor - 0.01) {
     const q = p.project(sh, 0);
     if (q) {
       ctx.beginPath();
@@ -539,7 +549,7 @@ function drawSolarSystem(ctx: CanvasRenderingContext2D, p: Projector, scene: Sky
     }
   }
   const mh = seen(f, light.moon);
-  if (mh[2] > -0.02 || scene.selected?.id === 'Moon') {
+  if (mh[2] > floor - 0.01 || scene.selected?.id === 'Moon') {
     const q = p.project(mh, 0);
     if (q) {
       // The way to the Sun from the Moon, on the screen: a step along the great circle towards it.
@@ -550,7 +560,7 @@ function drawSolarSystem(ctx: CanvasRenderingContext2D, p: Projector, scene: Sky
       const q2 = p.project(seen(f, toward), 0);
       const angle = q2 ? Math.atan2(q2[1] - q[1], q2[0] - q[0]) : 0;
       const r = Math.max(7, 0.26 * pxDeg);
-      ctx.globalAlpha = mh[2] < 0 ? 0.45 : 1;
+      ctx.globalAlpha = below(mh) ? 0.45 : 1;
       drawMoon(ctx, q[0], q[1], r, light.moonFraction, angle);
       ctx.globalAlpha = 1;
       if (scene.layers.names) {
@@ -564,7 +574,7 @@ function drawSolarSystem(ctx: CanvasRenderingContext2D, p: Projector, scene: Sky
 
 function drawCore(ctx: CanvasRenderingContext2D, p: Projector, f: Frame, picks: Pickable[], names: boolean) {
   const h = horiz(f, unitVector(GALACTIC_CENTRE.ra, GALACTIC_CENTRE.dec));
-  if (h[2] < -0.01) return;
+  if (h[2] < floor) return;
   const q = p.project(h, 0);
   if (!q) return;
   ctx.strokeStyle = 'rgb(255 236 200 / 0.7)';
@@ -640,19 +650,22 @@ export function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number, sce
   const moonFraction = bodyLight('Moon', scene.ms).fraction;
   const moonGlow = moonAlt > 0 ? moonFraction ** 1.5 * Math.min(1, moonAlt / 10 + 0.3) : 0;
   const light: Light = { sun, sunH: horiz(f, sun), moon, moonH: horiz(f, moon), sunAlt, moonAlt, moonGlow, moonFraction };
+  // Without the air, the sky stays as dark as at midnight with no Moon, whatever the Sun does.
+  const sky: Light = scene.layers.atmosphere ? light : { ...light, sunAlt: -90, moonGlow: 0 };
+  floor = scene.layers.ground ? -0.01 : -2;
   const picks: Pickable[] = [];
 
-  drawBackground(ctx, p, scene, light, w, h);
+  drawBackground(ctx, p, scene, sky, w, h);
   if (scene.layers.grid) drawGrid(ctx, p);
   if (scene.layers.constellations) drawConstellations(ctx, p, f, scene.layers.names);
-  drawStars(ctx, p, f, limitingMagnitude(sunAlt, moonGlow), scene.layers.names);
+  drawStars(ctx, p, f, limitingMagnitude(sky.sunAlt, sky.moonGlow), scene.layers.names);
   if (scene.layers.milkyWay) drawCore(ctx, p, f, picks, scene.layers.names);
   if (scene.layers.deepSky) drawDeepSky(ctx, p, f, picks, scene.selected?.id ?? null);
   drawSolarSystem(ctx, p, scene, light, picks);
-  drawGround(ctx, p, w, h, sunAlt, true);
+  drawGround(ctx, p, w, h, sunAlt, scene.layers.ground);
   drawCompass(ctx, p);
   // The frame only once the target is up; below the horizon it would lie on the ground.
-  if (scene.camera && scene.layers.frame && horiz(f, scene.camera.centre)[2] > -0.03) drawCameraFrame(ctx, p, f, scene.camera);
+  if (scene.camera && scene.layers.frame && horiz(f, scene.camera.centre)[2] > floor - 0.02) drawCameraFrame(ctx, p, f, scene.camera);
   if (scene.selected) drawSelected(ctx, p, f, scene.selected);
   return picks;
 }

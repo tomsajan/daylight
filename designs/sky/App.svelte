@@ -368,6 +368,8 @@
           <label><input type="checkbox" autocomplete="off" bind:checked={prefs.layers.deepSky} /> Deep sky</label>
           <label><input type="checkbox" autocomplete="off" bind:checked={prefs.layers.frame} /> Frame</label>
           <label><input type="checkbox" autocomplete="off" bind:checked={prefs.layers.grid} /> Grid</label>
+          <label title="Off: see through the ground to what is below the horizon"><input type="checkbox" autocomplete="off" bind:checked={prefs.layers.ground} /> Ground</label>
+          <label title="Off: a dark sky whatever the Sun and the Moon do, to see what is about to rise"><input type="checkbox" autocomplete="off" bind:checked={prefs.layers.atmosphere} /> Atmosphere</label>
         </div>
         <div class="zoom">
           <button class="dl-btn" onclick={() => chart?.wholeSky()} title="The whole sky, the zenith in the middle">Whole sky</button>

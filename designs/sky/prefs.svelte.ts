@@ -15,6 +15,8 @@ export interface SkyPrefs {
     deepSky: boolean;
     grid: boolean;
     frame: boolean;
+    ground: boolean;
+    atmosphere: boolean;
   };
   /** Which kinds of target the list shows. */
   groups: Record<string, boolean>;
@@ -46,7 +48,7 @@ export function listGroup(group: string): string {
 const DEFAULTS: SkyPrefs = {
   camera: DEFAULT_CAMERA,
   minAlt: 30,
-  layers: { constellations: true, names: true, milkyWay: true, deepSky: true, grid: false, frame: true },
+  layers: { constellations: true, names: true, milkyWay: true, deepSky: true, grid: false, frame: true, ground: true, atmosphere: true },
   groups: Object.fromEntries(GROUPS.map((g) => [g.id, true])),
   nightVision: false,
   lightsOpacity: 0.85,
